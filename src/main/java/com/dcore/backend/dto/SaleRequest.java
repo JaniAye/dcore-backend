@@ -10,6 +10,8 @@ public class SaleRequest {
     private Long customerId;
     private List<SaleItemRequest> items;
     private DiscountLevel discountLevel;
+    private BigDecimal customDiscountAmount;
+    private String discountType; // "PERCENTAGE" or "FIXED"
     private String discountReason;
     private Boolean isInternal;
     private String internalReason;

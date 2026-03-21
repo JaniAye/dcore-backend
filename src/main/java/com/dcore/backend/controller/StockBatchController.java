@@ -3,6 +3,7 @@ package com.dcore.backend.controller;
 import com.dcore.backend.dto.AddBatchExpenseRequest;
 import com.dcore.backend.dto.BatchExpenseDto;
 import com.dcore.backend.dto.CreateStockBatchRequest;
+import com.dcore.backend.dto.ProductDefaultsDto;
 import com.dcore.backend.dto.StockBatchDto;
 import com.dcore.backend.service.StockBatchService;
 import lombok.RequiredArgsConstructor;
@@ -30,5 +31,10 @@ public class StockBatchController {
     @GetMapping
     public List<StockBatchDto> getAllBatches() {
         return stockBatchService.getAllBatches();
+    }
+
+    @GetMapping("/product/{productId}/latest")
+    public ProductDefaultsDto getProductDefaults(@PathVariable Long productId) {
+        return stockBatchService.getProductDefaults(productId);
     }
 }

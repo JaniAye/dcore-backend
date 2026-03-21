@@ -3,6 +3,7 @@ package com.dcore.backend.service;
 import com.dcore.backend.dto.AddBatchExpenseRequest;
 import com.dcore.backend.dto.BatchExpenseDto;
 import com.dcore.backend.dto.CreateStockBatchRequest;
+import com.dcore.backend.dto.ProductDefaultsDto;
 import com.dcore.backend.dto.StockBatchDto;
 import com.dcore.backend.entity.BatchExpense;
 import com.dcore.backend.entity.Product;
@@ -39,7 +40,28 @@ public class StockBatchService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        return mapToDto(stockBatchRepository.save(batch));
+        StockBatch savedBatch = stockBatchRepository.save(batch);
+
+        if (request.getExpenses() != null && !request.getExpenses().isEmpty()) {
+            for (CreateStockBatchRequest.ExpenseItemDto expenseDto : request.getExpenses()) {
+                BatchExpense expense = BatchExpense.builder()
+                        .batch(savedBatch)
+                        .description(expenseDto.getDescription())
+                        .amount(expenseDto.getAmount())
+                        .build();
+                batchExpenseRepository.save(expense);
+            }
+        }
+
+        if (request.getNewBaseSellingPrice() != null) {
+            product.setBaseSellingPrice(request.getNewBaseSellingPrice());
+        }
+        if (request.getNewMinSellingPrice() != null) {
+            product.setMinSellingPrice(request.getNewMinSellingPrice());
+        }
+        productRepository.save(product);
+
+        return mapToDto(savedBatch);
     }
 
     public BatchExpenseDto addExpenseToBatch(AddBatchExpenseRequest request) {
@@ -66,6 +88,35 @@ public class StockBatchService {
         return stockBatchRepository.findAll().stream()
                 .map(this::mapToDto)
                 .collect(Collectors.toList());
+    }
+
+    public ProductDefaultsDto getProductDefaults(Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        StockBatch latestBatch = stockBatchRepository.findFirstByProductIdOrderByCreatedAtDesc(productId).orElse(null);
+
+        List<CreateStockBatchRequest.ExpenseItemDto> lastExpenses = List.of();
+        BigDecimal lastBaseCost = BigDecimal.ZERO;
+
+        if (latestBatch != null) {
+            lastBaseCost = latestBatch.getBaseCost();
+            lastExpenses = batchExpenseRepository.findByBatchId(latestBatch.getId()).stream()
+                    .map(e -> {
+                        CreateStockBatchRequest.ExpenseItemDto dto = new CreateStockBatchRequest.ExpenseItemDto();
+                        dto.setDescription(e.getDescription());
+                        dto.setAmount(e.getAmount());
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        return ProductDefaultsDto.builder()
+                .lastBaseCost(lastBaseCost)
+                .lastExpenses(lastExpenses)
+                .currentBaseSellingPrice(product.getBaseSellingPrice())
+                .currentMinSellingPrice(product.getMinSellingPrice())
+                .build();
     }
 
     private StockBatchDto mapToDto(StockBatch batch) {

@@ -109,7 +109,13 @@ public class SaleService {
 
         BigDecimal discountAmount = BigDecimal.ZERO;
         if (!Boolean.TRUE.equals(request.getIsInternal())) {
-            if (request.getDiscountLevel() == DiscountLevel.LOW) {
+            if (request.getCustomDiscountAmount() != null && request.getCustomDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
+                if ("PERCENTAGE".equals(request.getDiscountType())) {
+                    discountAmount = totalAmount.multiply(request.getCustomDiscountAmount()).divide(new BigDecimal("100"));
+                } else {
+                    discountAmount = request.getCustomDiscountAmount();
+                }
+            } else if (request.getDiscountLevel() == DiscountLevel.LOW) {
                 discountAmount = totalAmount.multiply(new BigDecimal("0.05"));
             } else if (request.getDiscountLevel() == DiscountLevel.MEDIUM) {
                 discountAmount = totalAmount.multiply(new BigDecimal("0.10"));
