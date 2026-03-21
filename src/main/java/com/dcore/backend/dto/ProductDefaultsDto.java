@@ -15,6 +15,8 @@ import java.util.List;
 public class ProductDefaultsDto {
     private BigDecimal lastBaseCost;
     private List<CreateStockBatchRequest.ExpenseItemDto> lastExpenses;
-    private BigDecimal currentBaseSellingPrice;
-    private BigDecimal currentMinSellingPrice;
+    private BigDecimal standardPrice;
+    private BigDecimal priceLevel2;
+    private BigDecimal priceLevel3;
+    private BigDecimal minPrice;
 }

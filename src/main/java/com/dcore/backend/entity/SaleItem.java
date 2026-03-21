@@ -39,4 +39,7 @@ public class SaleItem {
 
     @Column(nullable = false)
     private BigDecimal subtotal; // This will be (unitPrice * quantity) - discountAmount
+
+    @Column(nullable = false)
+    private BigDecimal purchasePrice; // Cost per unit at time of sale
 }

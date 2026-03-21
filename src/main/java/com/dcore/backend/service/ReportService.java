@@ -7,8 +7,6 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -28,15 +26,16 @@ public class ReportService {
     }
 
     public BigDecimal getMonthlyProfit(int year, int month) {
-        List<SaleDto> monthlySales = saleService.getAllSales().stream()
+        return saleService.getAllSales().stream()
                 .filter(s -> s.getCreatedAt().getYear() == year && s.getCreatedAt().getMonthValue() == month)
                 .filter(s -> !Boolean.TRUE.equals(s.getIsInternal()))
-                .collect(Collectors.toList());
-
-        BigDecimal totalRevenue = monthlySales.stream()
-                .map(SaleDto::getFinalAmount)
+                .flatMap(s -> s.getItems().stream())
+                .map(item -> {
+                    BigDecimal totalCost = item.getPurchasePrice() != null 
+                        ? item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity()))
+                        : BigDecimal.ZERO;
+                    return item.getSubtotal().subtract(totalCost);
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        return totalRevenue.multiply(new BigDecimal("0.20"));
     }
 }

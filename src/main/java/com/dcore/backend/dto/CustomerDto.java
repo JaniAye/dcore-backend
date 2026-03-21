@@ -13,4 +13,5 @@ public class CustomerDto {
     private String mobile;
     private LocalDateTime createdAt;
     private BigDecimal outstandingBalance;
+    private BigDecimal totalSpend;
 }

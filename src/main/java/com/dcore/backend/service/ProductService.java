@@ -12,8 +12,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.transaction.annotation.Transactional;
+
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class ProductService {
 
     private final ProductRepository productRepository;
@@ -25,7 +28,10 @@ public class ProductService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .imageUrl(request.getImageUrl())
-                // baseSellingPrice and minSellingPrice are null until first stock batch is added
+                .standardPrice(request.getStandardPrice())
+                .priceLevel2(request.getPriceLevel2())
+                .priceLevel3(request.getPriceLevel3())
+                .minPrice(request.getMinPrice())
                 .build();
 
         return mapToDto(productRepository.save(product));
@@ -74,8 +80,10 @@ public class ProductService {
                 .name(product.getName())
                 .description(product.getDescription())
                 .imageUrl(product.getImageUrl())
-                .baseSellingPrice(product.getBaseSellingPrice())
-                .minSellingPrice(product.getMinSellingPrice())
+                .standardPrice(product.getStandardPrice())
+                .priceLevel2(product.getPriceLevel2())
+                .priceLevel3(product.getPriceLevel3())
+                .minPrice(product.getMinPrice())
                 .totalStock(totalStock)
                 .build();
     }

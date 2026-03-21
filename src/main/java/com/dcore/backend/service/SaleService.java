@@ -73,7 +73,7 @@ public class SaleService {
             int remainingQtyToSell = itemReq.getQuantity();
             List<StockBatch> availableBatches = stockBatchRepository.findAvailableBatchesForProduct(product.getId());
 
-            BigDecimal itemUnitPrice = product.getBaseSellingPrice(); 
+            BigDecimal itemUnitPrice = product.getStandardPrice(); 
             if (Boolean.TRUE.equals(request.getIsInternal())) {
                  itemUnitPrice = BigDecimal.ZERO;
             }
@@ -112,6 +112,7 @@ public class SaleService {
                         .batch(batch)
                         .quantity(qtyFromBatch)
                         .unitPrice(itemUnitPrice)
+                        .purchasePrice(batch.getBaseCost()) // Capture actual cost per unit
                         .discountType(itemReq.getDiscountType())
                         .discountValue(itemReq.getDiscountValue())
                         .discountAmount(batchDiscountAmount)
@@ -190,6 +191,7 @@ public class SaleService {
                 .batchId(i.getBatch().getId())
                 .quantity(i.getQuantity())
                 .unitPrice(i.getUnitPrice())
+                .purchasePrice(i.getPurchasePrice())
                 .subtotal(i.getSubtotal())
                 .build()).collect(Collectors.toList());
 

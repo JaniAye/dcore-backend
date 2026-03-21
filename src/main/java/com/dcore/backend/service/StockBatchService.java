@@ -53,11 +53,17 @@ public class StockBatchService {
             }
         }
 
-        if (request.getNewBaseSellingPrice() != null) {
-            product.setBaseSellingPrice(request.getNewBaseSellingPrice());
+        if (request.getStandardPrice() != null) {
+            product.setStandardPrice(request.getStandardPrice());
         }
-        if (request.getNewMinSellingPrice() != null) {
-            product.setMinSellingPrice(request.getNewMinSellingPrice());
+        if (request.getPriceLevel2() != null) {
+            product.setPriceLevel2(request.getPriceLevel2());
+        }
+        if (request.getPriceLevel3() != null) {
+            product.setPriceLevel3(request.getPriceLevel3());
+        }
+        if (request.getMinPrice() != null) {
+            product.setMinPrice(request.getMinPrice());
         }
         productRepository.save(product);
 
@@ -114,8 +120,10 @@ public class StockBatchService {
         return ProductDefaultsDto.builder()
                 .lastBaseCost(lastBaseCost)
                 .lastExpenses(lastExpenses)
-                .currentBaseSellingPrice(product.getBaseSellingPrice())
-                .currentMinSellingPrice(product.getMinSellingPrice())
+                .standardPrice(product.getStandardPrice())
+                .priceLevel2(product.getPriceLevel2())
+                .priceLevel3(product.getPriceLevel3())
+                .minPrice(product.getMinPrice())
                 .build();
     }
 
@@ -129,7 +137,8 @@ public class StockBatchService {
                 .map(BatchExpense::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalCost = batch.getBaseCost().add(totalExpenses);
+        BigDecimal totalBaseCost = batch.getBaseCost().multiply(BigDecimal.valueOf(batch.getQuantityInitial()));
+        BigDecimal totalCost = totalBaseCost.add(totalExpenses);
         BigDecimal costPerItem = totalCost.divide(BigDecimal.valueOf(batch.getQuantityInitial()), 2, RoundingMode.HALF_UP);
 
         return StockBatchDto.builder()

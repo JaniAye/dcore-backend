@@ -104,6 +104,7 @@ public class CustomerService {
                 .name(customer.getName())
                 .mobile(customer.getMobile())
                 .createdAt(customer.getCreatedAt())
+                .totalSpend(totalSalesAmt)
                 .outstandingBalance(outstandingBalance)
                 .build();
     }

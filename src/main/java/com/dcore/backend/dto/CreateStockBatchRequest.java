@@ -9,9 +9,11 @@ public class CreateStockBatchRequest {
     private Long productId;
     private Integer quantity;
     private BigDecimal baseCost;
-    private List<ExpenseItemDto> expenses;
-    private BigDecimal newBaseSellingPrice;
-    private BigDecimal newMinSellingPrice;
+    private List<CreateStockBatchRequest.ExpenseItemDto> expenses;
+    private BigDecimal standardPrice;
+    private BigDecimal priceLevel2;
+    private BigDecimal priceLevel3;
+    private BigDecimal minPrice;
 
     @Data
     public static class ExpenseItemDto {

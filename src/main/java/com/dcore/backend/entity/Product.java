@@ -32,8 +32,14 @@ public class Product {
 
     private String imageUrl;
 
-    // Prices are null initially and get set when the first stock batch is added
-    private BigDecimal baseSellingPrice;
+    // Pricing levels (LKR)
+    @Column(nullable = false)
+    private BigDecimal standardPrice;
 
-    private BigDecimal minSellingPrice;
+    private BigDecimal priceLevel2;
+
+    private BigDecimal priceLevel3;
+
+    @Column(nullable = false)
+    private BigDecimal minPrice; // Used for MAX discount floor
 }

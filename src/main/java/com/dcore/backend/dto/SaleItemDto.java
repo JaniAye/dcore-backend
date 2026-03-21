@@ -13,5 +13,6 @@ public class SaleItemDto {
     private Long batchId;
     private Integer quantity;
     private BigDecimal unitPrice;
+    private BigDecimal purchasePrice;
     private BigDecimal subtotal;
 }
