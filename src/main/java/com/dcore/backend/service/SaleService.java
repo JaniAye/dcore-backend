@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +62,8 @@ public class SaleService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        BigDecimal totalAmount = BigDecimal.ZERO;
+        BigDecimal totalAmountStr = BigDecimal.ZERO; // Track total before any discounts
+        BigDecimal totalDiscountAmount = BigDecimal.ZERO;
         List<SaleItem> saleItems = new ArrayList<>();
 
         for (SaleItemRequest itemReq : request.getItems()) {
@@ -71,9 +73,21 @@ public class SaleService {
             int remainingQtyToSell = itemReq.getQuantity();
             List<StockBatch> availableBatches = stockBatchRepository.findAvailableBatchesForProduct(product.getId());
 
-            BigDecimal itemSellingPrice = product.getBaseSellingPrice(); 
+            BigDecimal itemUnitPrice = product.getBaseSellingPrice(); 
             if (Boolean.TRUE.equals(request.getIsInternal())) {
-                 itemSellingPrice = BigDecimal.ZERO;
+                 itemUnitPrice = BigDecimal.ZERO;
+            }
+
+            // Calculate item-level discount for the entire quantity of this item
+            BigDecimal rawItemSubtotal = itemUnitPrice.multiply(BigDecimal.valueOf(itemReq.getQuantity()));
+            BigDecimal itemDiscountAmount = BigDecimal.ZERO;
+
+            if (!Boolean.TRUE.equals(request.getIsInternal()) && itemReq.getDiscountType() != null && !"NONE".equals(itemReq.getDiscountType())) {
+                if ("PERCENTAGE".equals(itemReq.getDiscountType())) {
+                    itemDiscountAmount = rawItemSubtotal.multiply(itemReq.getDiscountValue()).divide(new BigDecimal("100"));
+                } else if ("FIXED".equals(itemReq.getDiscountType())) {
+                    itemDiscountAmount = itemReq.getDiscountValue();
+                }
             }
 
             for (StockBatch batch : availableBatches) {
@@ -83,19 +97,30 @@ public class SaleService {
                 batch.setQuantityRemaining(batch.getQuantityRemaining() - qtyFromBatch);
                 stockBatchRepository.save(batch);
 
-                BigDecimal subtotal = itemSellingPrice.multiply(BigDecimal.valueOf(qtyFromBatch));
+                // Pro-rate the item-level discount across batches if necessary (though usually simple)
+                // For simplicity, we just store the totals in the SaleItem
+                BigDecimal batchSubtotalRaw = itemUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch));
+                
+                // We'll put all discount info into the FIRST batch entry for this product to keep it simple,
+                // or just distribute it. Let's just store it per batch part.
+                BigDecimal batchDiscountAmount = itemDiscountAmount.multiply(BigDecimal.valueOf(qtyFromBatch))
+                        .divide(BigDecimal.valueOf(itemReq.getQuantity()), 2, RoundingMode.HALF_UP);
 
                 SaleItem saleItem = SaleItem.builder()
                         .sale(sale)
                         .product(product)
                         .batch(batch)
                         .quantity(qtyFromBatch)
-                        .unitPrice(itemSellingPrice)
-                        .subtotal(subtotal)
+                        .unitPrice(itemUnitPrice)
+                        .discountType(itemReq.getDiscountType())
+                        .discountValue(itemReq.getDiscountValue())
+                        .discountAmount(batchDiscountAmount)
+                        .subtotal(batchSubtotalRaw.subtract(batchDiscountAmount))
                         .build();
 
                 saleItems.add(saleItem);
-                totalAmount = totalAmount.add(subtotal);
+                totalAmountStr = totalAmountStr.add(batchSubtotalRaw);
+                totalDiscountAmount = totalDiscountAmount.add(batchDiscountAmount);
                 remainingQtyToSell -= qtyFromBatch;
             }
 
@@ -105,27 +130,9 @@ public class SaleService {
         }
 
         sale.setItems(saleItems);
-        sale.setTotalAmount(totalAmount);
-
-        BigDecimal discountAmount = BigDecimal.ZERO;
-        if (!Boolean.TRUE.equals(request.getIsInternal())) {
-            if (request.getCustomDiscountAmount() != null && request.getCustomDiscountAmount().compareTo(BigDecimal.ZERO) > 0) {
-                if ("PERCENTAGE".equals(request.getDiscountType())) {
-                    discountAmount = totalAmount.multiply(request.getCustomDiscountAmount()).divide(new BigDecimal("100"));
-                } else {
-                    discountAmount = request.getCustomDiscountAmount();
-                }
-            } else if (request.getDiscountLevel() == DiscountLevel.LOW) {
-                discountAmount = totalAmount.multiply(new BigDecimal("0.05"));
-            } else if (request.getDiscountLevel() == DiscountLevel.MEDIUM) {
-                discountAmount = totalAmount.multiply(new BigDecimal("0.10"));
-            } else if (request.getDiscountLevel() == DiscountLevel.MAX) {
-                discountAmount = totalAmount.multiply(new BigDecimal("0.20"));
-            }
-        }
-        
-        sale.setDiscountAmount(discountAmount);
-        sale.setFinalAmount(totalAmount.subtract(discountAmount));
+        sale.setTotalAmount(totalAmountStr);
+        sale.setDiscountAmount(totalDiscountAmount);
+        sale.setFinalAmount(totalAmountStr.subtract(totalDiscountAmount));
         
         Sale savedSale = saleRepository.save(sale);
 

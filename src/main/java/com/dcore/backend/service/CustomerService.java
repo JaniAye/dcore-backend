@@ -25,17 +25,22 @@ public class CustomerService {
     private final PaymentRepository paymentRepository;
 
     public CustomerDto createCustomer(CreateCustomerRequest request) {
-        if (customerRepository.findByMobile(request.getMobile()).isPresent()) {
-            throw new RuntimeException("Customer with this mobile already exists");
-        }
-
-        Customer customer = Customer.builder()
-                .name(request.getName())
-                .mobile(request.getMobile())
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        return mapToDto(customerRepository.save(customer));
+        return customerRepository.findByMobile(request.getMobile())
+                .map(existing -> {
+                    if (request.getName() != null && !request.getName().trim().isEmpty()) {
+                        existing.setName(request.getName());
+                        customerRepository.save(existing);
+                    }
+                    return mapToDto(existing);
+                })
+                .orElseGet(() -> {
+                    Customer customer = Customer.builder()
+                            .name(request.getName())
+                            .mobile(request.getMobile())
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                    return mapToDto(customerRepository.save(customer));
+                });
     }
 
     public List<CustomerDto> getAllCustomers() {

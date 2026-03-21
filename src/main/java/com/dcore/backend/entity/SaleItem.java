@@ -33,6 +33,10 @@ public class SaleItem {
     @Column(nullable = false)
     private BigDecimal unitPrice;
 
+    private String discountType;
+    private BigDecimal discountValue;
+    private BigDecimal discountAmount;
+
     @Column(nullable = false)
-    private BigDecimal subtotal;
+    private BigDecimal subtotal; // This will be (unitPrice * quantity) - discountAmount
 }
