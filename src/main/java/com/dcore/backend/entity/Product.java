@@ -32,14 +32,10 @@ public class Product {
 
     private String imageUrl;
 
-    // Pricing levels (LKR)
+    // Pricing (LKR)
     @Column(nullable = false)
     private BigDecimal standardPrice;
 
-    private BigDecimal priceLevel2;
-
-    private BigDecimal priceLevel3;
-
     @Column(nullable = false)
-    private BigDecimal minPrice; // Used for MAX discount floor
+    private BigDecimal minPrice; // Used for floor validation
 }

@@ -14,6 +14,7 @@ public class StockBatchDto {
     private Integer quantityInitial;
     private Integer quantityRemaining;
     private BigDecimal baseCost;
+    private BigDecimal sellingPrice;
     private BigDecimal totalExpenses;
     private BigDecimal costPerItem;
     private LocalDateTime createdAt;

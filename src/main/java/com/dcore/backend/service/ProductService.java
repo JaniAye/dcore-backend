@@ -30,8 +30,6 @@ public class ProductService {
                 .imageUrl(request.getImageUrl())
                 .standardPrice(
                         request.getStandardPrice() != null ? request.getStandardPrice() : java.math.BigDecimal.ZERO)
-                .priceLevel2(request.getPriceLevel2())
-                .priceLevel3(request.getPriceLevel3())
                 .minPrice(request.getMinPrice() != null ? request.getMinPrice() : java.math.BigDecimal.ZERO)
                 .build();
 
@@ -86,8 +84,6 @@ public class ProductService {
                 .description(product.getDescription())
                 .imageUrl(product.getImageUrl())
                 .standardPrice(product.getStandardPrice())
-                .priceLevel2(product.getPriceLevel2())
-                .priceLevel3(product.getPriceLevel3())
                 .minPrice(product.getMinPrice())
                 .totalStock(totalStock)
                 .build();

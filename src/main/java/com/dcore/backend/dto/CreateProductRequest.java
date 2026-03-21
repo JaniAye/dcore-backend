@@ -9,7 +9,5 @@ public class CreateProductRequest {
     private String description; // optional
     private String imageUrl; // optional - set via image upload
     private java.math.BigDecimal standardPrice;
-    private java.math.BigDecimal priceLevel2;
-    private java.math.BigDecimal priceLevel3;
     private java.math.BigDecimal minPrice;
 }

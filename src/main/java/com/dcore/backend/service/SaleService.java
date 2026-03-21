@@ -75,24 +75,9 @@ public class SaleService {
             int remainingQtyToSell = itemReq.getQuantity();
             List<StockBatch> availableBatches = stockBatchRepository.findAvailableBatchesForProduct(product.getId());
 
-            BigDecimal itemUnitPrice = product.getStandardPrice();
-            if (Boolean.TRUE.equals(request.getIsInternal())) {
-                itemUnitPrice = BigDecimal.ZERO;
-            }
+            // Standard base price is now irrelevant as we use the batch's selling price or override
 
-            // Calculate item-level discount for the entire quantity of this item
-            BigDecimal rawItemSubtotal = itemUnitPrice.multiply(BigDecimal.valueOf(itemReq.getQuantity()));
-            BigDecimal itemDiscountAmount = BigDecimal.ZERO;
-
-            if (!Boolean.TRUE.equals(request.getIsInternal()) && itemReq.getDiscountType() != null
-                    && !"NONE".equals(itemReq.getDiscountType())) {
-                if ("PERCENTAGE".equals(itemReq.getDiscountType())) {
-                    itemDiscountAmount = rawItemSubtotal.multiply(itemReq.getDiscountValue())
-                            .divide(new BigDecimal("100"));
-                } else if ("FIXED".equals(itemReq.getDiscountType())) {
-                    itemDiscountAmount = itemReq.getDiscountValue();
-                }
-            }
+            // Pricing and discounts are now handled per batch part in the inner loop
 
             for (StockBatch batch : availableBatches) {
                 if (remainingQtyToSell <= 0)
@@ -105,15 +90,15 @@ public class SaleService {
                 // Pro-rate the item-level discount across batches if necessary (though usually
                 // simple)
                 // For simplicity, we just store the totals in the SaleItem
-                BigDecimal batchSubtotalRaw = itemUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch));
+                // Pricing logic: use override price if provided, otherwise batch selling price
+                BigDecimal originalSellingPrice = batch.getSellingPrice();
+                BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null ? itemReq.getOverridePrice() : originalSellingPrice;
+                
+                if (Boolean.TRUE.equals(request.getIsInternal())) {
+                    finalUnitPrice = BigDecimal.ZERO;
+                }
 
-                // We'll put all discount info into the FIRST batch entry for this product to
-                // keep it simple,
-                // or just distribute it. Let's just store it per batch part.
-                BigDecimal batchDiscountAmount = itemDiscountAmount.multiply(BigDecimal.valueOf(qtyFromBatch))
-                        .divide(BigDecimal.valueOf(itemReq.getQuantity()), 2, RoundingMode.HALF_UP);
-
-                // Calculate actual landed cost for this batch
+                // Landed cost calculation for floor validation
                 List<BatchExpense> expenses = batchExpenseRepository.findByBatchId(batch.getId());
                 BigDecimal totalExpenses = expenses.stream()
                         .map(BatchExpense::getAmount)
@@ -121,25 +106,35 @@ public class SaleService {
                 BigDecimal totalBaseCost = batch.getBaseCost().multiply(BigDecimal.valueOf(batch.getQuantityInitial()));
                 BigDecimal totalLandedCost = totalBaseCost.add(totalExpenses);
                 BigDecimal landedCost = batch.getQuantityInitial() > 0
-                        ? totalLandedCost.divide(BigDecimal.valueOf(batch.getQuantityInitial()), 2,
-                                RoundingMode.HALF_UP)
+                        ? totalLandedCost.divide(BigDecimal.valueOf(batch.getQuantityInitial()), 2, RoundingMode.HALF_UP)
                         : batch.getBaseCost();
+
+                // Cost Floor Validation (only for non-internal sales)
+                if (!Boolean.TRUE.equals(request.getIsInternal()) && finalUnitPrice.compareTo(landedCost) < 0) {
+                    throw new RuntimeException("Selling price of " + finalUnitPrice + " is below landed cost of " + landedCost + " for product " + product.getName());
+                }
+
+                // Discount logic: any difference from original selling price is treated as a discount
+                BigDecimal batchDiscountAmount = BigDecimal.ZERO;
+                if (finalUnitPrice.compareTo(originalSellingPrice) < 0) {
+                    batchDiscountAmount = originalSellingPrice.subtract(finalUnitPrice).multiply(BigDecimal.valueOf(qtyFromBatch));
+                }
 
                 SaleItem saleItem = SaleItem.builder()
                         .sale(sale)
                         .product(product)
                         .batch(batch)
                         .quantity(qtyFromBatch)
-                        .unitPrice(itemUnitPrice)
-                        .purchasePrice(landedCost) // Use Landed Cost instead of Base Cost
-                        .discountType(itemReq.getDiscountType())
-                        .discountValue(itemReq.getDiscountValue())
+                        .unitPrice(originalSellingPrice) // Base price of the batch
+                        .purchasePrice(landedCost)
+                        .discountType("OVERRIDE")
+                        .discountValue(BigDecimal.ZERO)
                         .discountAmount(batchDiscountAmount)
-                        .subtotal(batchSubtotalRaw.subtract(batchDiscountAmount))
+                        .subtotal(finalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch)))
                         .build();
 
                 saleItems.add(saleItem);
-                totalAmountStr = totalAmountStr.add(batchSubtotalRaw);
+                totalAmountStr = totalAmountStr.add(originalSellingPrice.multiply(BigDecimal.valueOf(qtyFromBatch))); // Accumulate based on original selling price
                 totalDiscountAmount = totalDiscountAmount.add(batchDiscountAmount);
                 remainingQtyToSell -= qtyFromBatch;
             }

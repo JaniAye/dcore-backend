@@ -37,6 +37,7 @@ public class StockBatchService {
                                 .quantityInitial(request.getQuantity())
                                 .quantityRemaining(request.getQuantity())
                                 .baseCost(request.getBaseCost())
+                                .sellingPrice(request.getSellingPrice())
                                 .createdAt(LocalDateTime.now())
                                 .build();
 
@@ -54,14 +55,8 @@ public class StockBatchService {
                 }
 
                 if (request.getStandardPrice() != null) {
-                        product.setStandardPrice(request.getStandardPrice());
-                }
-                if (request.getPriceLevel2() != null) {
-                        product.setPriceLevel2(request.getPriceLevel2());
-                }
-                if (request.getPriceLevel3() != null) {
-                        product.setPriceLevel3(request.getPriceLevel3());
-                }
+            product.setStandardPrice(request.getStandardPrice());
+        }
                 if (request.getMinPrice() != null) {
                         product.setMinPrice(request.getMinPrice());
                 }
@@ -122,8 +117,6 @@ public class StockBatchService {
                                 .lastBaseCost(lastBaseCost)
                                 .lastExpenses(lastExpenses)
                                 .standardPrice(product.getStandardPrice())
-                                .priceLevel2(product.getPriceLevel2())
-                                .priceLevel3(product.getPriceLevel3())
                                 .minPrice(product.getMinPrice())
                                 .build();
         }
@@ -150,6 +143,7 @@ public class StockBatchService {
                                 .quantityInitial(batch.getQuantityInitial())
                                 .quantityRemaining(batch.getQuantityRemaining())
                                 .baseCost(batch.getBaseCost())
+                                .sellingPrice(batch.getSellingPrice())
                                 .totalExpenses(totalExpenses)
                                 .costPerItem(costPerItem)
                                 .createdAt(batch.getCreatedAt())

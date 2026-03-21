@@ -30,5 +30,8 @@ public class StockBatch {
     private BigDecimal baseCost;
 
     @Column(nullable = false)
+    private BigDecimal sellingPrice;
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 }
