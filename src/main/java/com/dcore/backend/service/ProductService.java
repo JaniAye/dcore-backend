@@ -2,10 +2,8 @@ package com.dcore.backend.service;
 
 import com.dcore.backend.dto.CreateProductRequest;
 import com.dcore.backend.dto.ProductDto;
-import com.dcore.backend.entity.Category;
 import com.dcore.backend.entity.Product;
 import com.dcore.backend.entity.StockBatch;
-import com.dcore.backend.repository.CategoryRepository;
 import com.dcore.backend.repository.ProductRepository;
 import com.dcore.backend.repository.StockBatchRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,24 +17,15 @@ import java.util.stream.Collectors;
 public class ProductService {
 
     private final ProductRepository productRepository;
-    private final CategoryRepository categoryRepository;
     private final StockBatchRepository stockBatchRepository;
 
     public ProductDto createProduct(CreateProductRequest request) {
-        Category category = null;
-        if (request.getCategoryId() != null) {
-            category = categoryRepository.findById(request.getCategoryId()).orElse(null);
-        }
-
         Product product = Product.builder()
                 .itemCode(request.getItemCode())
                 .name(request.getName())
                 .description(request.getDescription())
-                .category(category)
-                .modelsSupported(request.getModelsSupported())
                 .imageUrl(request.getImageUrl())
-                .baseSellingPrice(request.getBaseSellingPrice())
-                .minSellingPrice(request.getMinSellingPrice())
+                // baseSellingPrice and minSellingPrice are null until first stock batch is added
                 .build();
 
         return mapToDto(productRepository.save(product));
@@ -62,9 +51,6 @@ public class ProductService {
                 .itemCode(product.getItemCode())
                 .name(product.getName())
                 .description(product.getDescription())
-                .categoryId(product.getCategory() != null ? product.getCategory().getId() : null)
-                .categoryName(product.getCategory() != null ? product.getCategory().getName() : null)
-                .modelsSupported(product.getModelsSupported())
                 .imageUrl(product.getImageUrl())
                 .baseSellingPrice(product.getBaseSellingPrice())
                 .minSellingPrice(product.getMinSellingPrice())

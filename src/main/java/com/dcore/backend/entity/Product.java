@@ -21,6 +21,7 @@ public class Product {
     @Column(nullable = false)
     private String name;
 
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -31,9 +32,8 @@ public class Product {
 
     private String imageUrl;
 
-    @Column(nullable = false)
+    // Prices are null initially and get set when the first stock batch is added
     private BigDecimal baseSellingPrice;
-    
-    @Column(nullable = false)
+
     private BigDecimal minSellingPrice;
 }
