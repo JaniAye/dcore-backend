@@ -23,134 +23,136 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class StockBatchService {
-    
-    private final StockBatchRepository stockBatchRepository;
-    private final BatchExpenseRepository batchExpenseRepository;
-    private final ProductRepository productRepository;
 
-    public StockBatchDto addStockBatch(CreateStockBatchRequest request) {
-        Product product = productRepository.findById(request.getProductId())
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+        private final StockBatchRepository stockBatchRepository;
+        private final BatchExpenseRepository batchExpenseRepository;
+        private final ProductRepository productRepository;
 
-        StockBatch batch = StockBatch.builder()
-                .product(product)
-                .quantityInitial(request.getQuantity())
-                .quantityRemaining(request.getQuantity())
-                .baseCost(request.getBaseCost())
-                .createdAt(LocalDateTime.now())
-                .build();
+        public StockBatchDto addStockBatch(CreateStockBatchRequest request) {
+                Product product = productRepository.findById(request.getProductId())
+                                .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        StockBatch savedBatch = stockBatchRepository.save(batch);
+                StockBatch batch = StockBatch.builder()
+                                .product(product)
+                                .quantityInitial(request.getQuantity())
+                                .quantityRemaining(request.getQuantity())
+                                .baseCost(request.getBaseCost())
+                                .createdAt(LocalDateTime.now())
+                                .build();
 
-        if (request.getExpenses() != null && !request.getExpenses().isEmpty()) {
-            for (CreateStockBatchRequest.ExpenseItemDto expenseDto : request.getExpenses()) {
+                StockBatch savedBatch = stockBatchRepository.save(batch);
+
+                if (request.getExpenses() != null && !request.getExpenses().isEmpty()) {
+                        for (CreateStockBatchRequest.ExpenseItemDto expenseDto : request.getExpenses()) {
+                                BatchExpense expense = BatchExpense.builder()
+                                                .batch(savedBatch)
+                                                .description(expenseDto.getDescription())
+                                                .amount(expenseDto.getAmount())
+                                                .build();
+                                batchExpenseRepository.save(expense);
+                        }
+                }
+
+                if (request.getStandardPrice() != null) {
+                        product.setStandardPrice(request.getStandardPrice());
+                }
+                if (request.getPriceLevel2() != null) {
+                        product.setPriceLevel2(request.getPriceLevel2());
+                }
+                if (request.getPriceLevel3() != null) {
+                        product.setPriceLevel3(request.getPriceLevel3());
+                }
+                if (request.getMinPrice() != null) {
+                        product.setMinPrice(request.getMinPrice());
+                }
+                productRepository.save(product);
+
+                return mapToDto(savedBatch);
+        }
+
+        public BatchExpenseDto addExpenseToBatch(AddBatchExpenseRequest request) {
+                StockBatch batch = stockBatchRepository.findById(request.getBatchId())
+                                .orElseThrow(() -> new RuntimeException("Batch not found"));
+
                 BatchExpense expense = BatchExpense.builder()
-                        .batch(savedBatch)
-                        .description(expenseDto.getDescription())
-                        .amount(expenseDto.getAmount())
-                        .build();
-                batchExpenseRepository.save(expense);
-            }
+                                .batch(batch)
+                                .description(request.getDescription())
+                                .amount(request.getAmount())
+                                .build();
+
+                expense = batchExpenseRepository.save(expense);
+
+                return BatchExpenseDto.builder()
+                                .id(expense.getId())
+                                .batchId(batch.getId())
+                                .description(expense.getDescription())
+                                .amount(expense.getAmount())
+                                .build();
         }
 
-        if (request.getStandardPrice() != null) {
-            product.setStandardPrice(request.getStandardPrice());
-        }
-        if (request.getPriceLevel2() != null) {
-            product.setPriceLevel2(request.getPriceLevel2());
-        }
-        if (request.getPriceLevel3() != null) {
-            product.setPriceLevel3(request.getPriceLevel3());
-        }
-        if (request.getMinPrice() != null) {
-            product.setMinPrice(request.getMinPrice());
-        }
-        productRepository.save(product);
-
-        return mapToDto(savedBatch);
-    }
-
-    public BatchExpenseDto addExpenseToBatch(AddBatchExpenseRequest request) {
-        StockBatch batch = stockBatchRepository.findById(request.getBatchId())
-                .orElseThrow(() -> new RuntimeException("Batch not found"));
-
-        BatchExpense expense = BatchExpense.builder()
-                .batch(batch)
-                .description(request.getDescription())
-                .amount(request.getAmount())
-                .build();
-
-        expense = batchExpenseRepository.save(expense);
-        
-        return BatchExpenseDto.builder()
-                .id(expense.getId())
-                .batchId(batch.getId())
-                .description(expense.getDescription())
-                .amount(expense.getAmount())
-                .build();
-    }
-
-    public List<StockBatchDto> getAllBatches() {
-        return stockBatchRepository.findAll().stream()
-                .map(this::mapToDto)
-                .collect(Collectors.toList());
-    }
-
-    public ProductDefaultsDto getProductDefaults(Long productId) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-
-        StockBatch latestBatch = stockBatchRepository.findFirstByProductIdOrderByCreatedAtDesc(productId).orElse(null);
-
-        List<CreateStockBatchRequest.ExpenseItemDto> lastExpenses = List.of();
-        BigDecimal lastBaseCost = BigDecimal.ZERO;
-
-        if (latestBatch != null) {
-            lastBaseCost = latestBatch.getBaseCost();
-            lastExpenses = batchExpenseRepository.findByBatchId(latestBatch.getId()).stream()
-                    .map(e -> {
-                        CreateStockBatchRequest.ExpenseItemDto dto = new CreateStockBatchRequest.ExpenseItemDto();
-                        dto.setDescription(e.getDescription());
-                        dto.setAmount(e.getAmount());
-                        return dto;
-                    })
-                    .collect(Collectors.toList());
+        public List<StockBatchDto> getAllBatches() {
+                return stockBatchRepository.findAll().stream()
+                                .map(this::mapToDto)
+                                .collect(Collectors.toList());
         }
 
-        return ProductDefaultsDto.builder()
-                .lastBaseCost(lastBaseCost)
-                .lastExpenses(lastExpenses)
-                .standardPrice(product.getStandardPrice())
-                .priceLevel2(product.getPriceLevel2())
-                .priceLevel3(product.getPriceLevel3())
-                .minPrice(product.getMinPrice())
-                .build();
-    }
+        public ProductDefaultsDto getProductDefaults(Long productId) {
+                Product product = productRepository.findById(productId)
+                                .orElseThrow(() -> new RuntimeException("Product not found"));
 
-    private StockBatchDto mapToDto(StockBatch batch) {
-        List<BatchExpense> expenses = batchExpenseRepository.findAll()
-                .stream()
-                .filter(e -> e.getBatch().getId().equals(batch.getId()))
-                .collect(Collectors.toList());
+                StockBatch latestBatch = stockBatchRepository.findFirstByProductIdOrderByCreatedAtDesc(productId)
+                                .orElse(null);
 
-        BigDecimal totalExpenses = expenses.stream()
-                .map(BatchExpense::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                List<CreateStockBatchRequest.ExpenseItemDto> lastExpenses = List.of();
+                BigDecimal lastBaseCost = BigDecimal.ZERO;
 
-        BigDecimal totalBaseCost = batch.getBaseCost().multiply(BigDecimal.valueOf(batch.getQuantityInitial()));
-        BigDecimal totalCost = totalBaseCost.add(totalExpenses);
-        BigDecimal costPerItem = totalCost.divide(BigDecimal.valueOf(batch.getQuantityInitial()), 2, RoundingMode.HALF_UP);
+                if (latestBatch != null) {
+                        lastBaseCost = latestBatch.getBaseCost();
+                        lastExpenses = batchExpenseRepository.findByBatchId(latestBatch.getId()).stream()
+                                        .map(e -> {
+                                                CreateStockBatchRequest.ExpenseItemDto dto = new CreateStockBatchRequest.ExpenseItemDto();
+                                                dto.setDescription(e.getDescription());
+                                                dto.setAmount(e.getAmount());
+                                                return dto;
+                                        })
+                                        .collect(Collectors.toList());
+                }
 
-        return StockBatchDto.builder()
-                .id(batch.getId())
-                .productId(batch.getProduct().getId())
-                .productName(batch.getProduct().getName())
-                .quantityInitial(batch.getQuantityInitial())
-                .quantityRemaining(batch.getQuantityRemaining())
-                .baseCost(batch.getBaseCost())
-                .totalExpenses(totalExpenses)
-                .costPerItem(costPerItem)
-                .createdAt(batch.getCreatedAt())
-                .build();
-    }
+                return ProductDefaultsDto.builder()
+                                .lastBaseCost(lastBaseCost)
+                                .lastExpenses(lastExpenses)
+                                .standardPrice(product.getStandardPrice())
+                                .priceLevel2(product.getPriceLevel2())
+                                .priceLevel3(product.getPriceLevel3())
+                                .minPrice(product.getMinPrice())
+                                .build();
+        }
+
+        private StockBatchDto mapToDto(StockBatch batch) {
+                List<BatchExpense> expenses = batchExpenseRepository.findAll()
+                                .stream()
+                                .filter(e -> e.getBatch().getId().equals(batch.getId()))
+                                .collect(Collectors.toList());
+
+                BigDecimal totalExpenses = expenses.stream()
+                                .map(BatchExpense::getAmount)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                BigDecimal totalBaseCost = batch.getBaseCost().multiply(BigDecimal.valueOf(batch.getQuantityInitial()));
+                BigDecimal totalCost = totalBaseCost.add(totalExpenses);
+                BigDecimal costPerItem = totalCost.divide(BigDecimal.valueOf(batch.getQuantityInitial()), 2,
+                                RoundingMode.HALF_UP);
+
+                return StockBatchDto.builder()
+                                .id(batch.getId())
+                                .productId(batch.getProduct().getId())
+                                .productName(batch.getProduct().getName())
+                                .quantityInitial(batch.getQuantityInitial())
+                                .quantityRemaining(batch.getQuantityRemaining())
+                                .baseCost(batch.getBaseCost())
+                                .totalExpenses(totalExpenses)
+                                .costPerItem(costPerItem)
+                                .createdAt(batch.getCreatedAt())
+                                .build();
+        }
 }

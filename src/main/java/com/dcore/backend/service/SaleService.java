@@ -26,6 +26,7 @@ public class SaleService {
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
+    private final BatchExpenseRepository batchExpenseRepository;
 
     @Transactional
     public SaleDto createSale(SaleRequest request) {
@@ -34,13 +35,14 @@ public class SaleService {
                 .orElseThrow(() -> new RuntimeException("Seller not found"));
 
         if (!Boolean.TRUE.equals(request.getIsInternal()) && seller.getRole() == Role.SALES_PERSON) {
-            if (request.getDiscountLevel() == DiscountLevel.MAX && (request.getDiscountReason() == null || request.getDiscountReason().isEmpty())) {
+            if (request.getDiscountLevel() == DiscountLevel.MAX
+                    && (request.getDiscountReason() == null || request.getDiscountReason().isEmpty())) {
                 throw new RuntimeException("Max discount requires a reason");
             }
         }
-        
+
         if (Boolean.TRUE.equals(request.getIsInternal()) && seller.getRole() != Role.SUPER_ADMIN) {
-             throw new RuntimeException("Only Super Admin can do internal sales");
+            throw new RuntimeException("Only Super Admin can do internal sales");
         }
 
         Customer customer = null;
@@ -73,38 +75,55 @@ public class SaleService {
             int remainingQtyToSell = itemReq.getQuantity();
             List<StockBatch> availableBatches = stockBatchRepository.findAvailableBatchesForProduct(product.getId());
 
-            BigDecimal itemUnitPrice = product.getStandardPrice(); 
+            BigDecimal itemUnitPrice = product.getStandardPrice();
             if (Boolean.TRUE.equals(request.getIsInternal())) {
-                 itemUnitPrice = BigDecimal.ZERO;
+                itemUnitPrice = BigDecimal.ZERO;
             }
 
             // Calculate item-level discount for the entire quantity of this item
             BigDecimal rawItemSubtotal = itemUnitPrice.multiply(BigDecimal.valueOf(itemReq.getQuantity()));
             BigDecimal itemDiscountAmount = BigDecimal.ZERO;
 
-            if (!Boolean.TRUE.equals(request.getIsInternal()) && itemReq.getDiscountType() != null && !"NONE".equals(itemReq.getDiscountType())) {
+            if (!Boolean.TRUE.equals(request.getIsInternal()) && itemReq.getDiscountType() != null
+                    && !"NONE".equals(itemReq.getDiscountType())) {
                 if ("PERCENTAGE".equals(itemReq.getDiscountType())) {
-                    itemDiscountAmount = rawItemSubtotal.multiply(itemReq.getDiscountValue()).divide(new BigDecimal("100"));
+                    itemDiscountAmount = rawItemSubtotal.multiply(itemReq.getDiscountValue())
+                            .divide(new BigDecimal("100"));
                 } else if ("FIXED".equals(itemReq.getDiscountType())) {
                     itemDiscountAmount = itemReq.getDiscountValue();
                 }
             }
 
             for (StockBatch batch : availableBatches) {
-                if (remainingQtyToSell <= 0) break;
+                if (remainingQtyToSell <= 0)
+                    break;
 
                 int qtyFromBatch = Math.min(batch.getQuantityRemaining(), remainingQtyToSell);
                 batch.setQuantityRemaining(batch.getQuantityRemaining() - qtyFromBatch);
                 stockBatchRepository.save(batch);
 
-                // Pro-rate the item-level discount across batches if necessary (though usually simple)
+                // Pro-rate the item-level discount across batches if necessary (though usually
+                // simple)
                 // For simplicity, we just store the totals in the SaleItem
                 BigDecimal batchSubtotalRaw = itemUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch));
-                
-                // We'll put all discount info into the FIRST batch entry for this product to keep it simple,
+
+                // We'll put all discount info into the FIRST batch entry for this product to
+                // keep it simple,
                 // or just distribute it. Let's just store it per batch part.
                 BigDecimal batchDiscountAmount = itemDiscountAmount.multiply(BigDecimal.valueOf(qtyFromBatch))
                         .divide(BigDecimal.valueOf(itemReq.getQuantity()), 2, RoundingMode.HALF_UP);
+
+                // Calculate actual landed cost for this batch
+                List<BatchExpense> expenses = batchExpenseRepository.findByBatchId(batch.getId());
+                BigDecimal totalExpenses = expenses.stream()
+                        .map(BatchExpense::getAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal totalBaseCost = batch.getBaseCost().multiply(BigDecimal.valueOf(batch.getQuantityInitial()));
+                BigDecimal totalLandedCost = totalBaseCost.add(totalExpenses);
+                BigDecimal landedCost = batch.getQuantityInitial() > 0
+                        ? totalLandedCost.divide(BigDecimal.valueOf(batch.getQuantityInitial()), 2,
+                                RoundingMode.HALF_UP)
+                        : batch.getBaseCost();
 
                 SaleItem saleItem = SaleItem.builder()
                         .sale(sale)
@@ -112,7 +131,7 @@ public class SaleService {
                         .batch(batch)
                         .quantity(qtyFromBatch)
                         .unitPrice(itemUnitPrice)
-                        .purchasePrice(batch.getBaseCost()) // Capture actual cost per unit
+                        .purchasePrice(landedCost) // Use Landed Cost instead of Base Cost
                         .discountType(itemReq.getDiscountType())
                         .discountValue(itemReq.getDiscountValue())
                         .discountAmount(batchDiscountAmount)
@@ -134,7 +153,7 @@ public class SaleService {
         sale.setTotalAmount(totalAmountStr);
         sale.setDiscountAmount(totalDiscountAmount);
         sale.setFinalAmount(totalAmountStr.subtract(totalDiscountAmount));
-        
+
         Sale savedSale = saleRepository.save(sale);
 
         if (request.getPaymentAmount() != null && request.getPaymentAmount().compareTo(BigDecimal.ZERO) > 0) {
@@ -153,10 +172,10 @@ public class SaleService {
     public SaleDto getSaleById(Long id) {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Sale not found"));
-                
+
         return mapToDto(sale);
     }
-    
+
     public List<SaleDto> getAllSales() {
         return saleRepository.findAll().stream()
                 .map(this::mapToDto)
@@ -166,14 +185,14 @@ public class SaleService {
     public PaymentDto addPayment(PaymentRequest request) {
         Sale sale = saleRepository.findById(request.getSaleId())
                 .orElseThrow(() -> new RuntimeException("Sale not found"));
-                
+
         Payment payment = Payment.builder()
                 .sale(sale)
                 .amount(request.getAmount())
                 .paymentMethod(request.getPaymentMethod())
                 .createdAt(LocalDateTime.now())
                 .build();
-                
+
         payment = paymentRepository.save(payment);
         return PaymentDto.builder()
                 .id(payment.getId())

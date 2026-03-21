@@ -28,10 +28,11 @@ public class ProductService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .imageUrl(request.getImageUrl())
-                .standardPrice(request.getStandardPrice())
+                .standardPrice(
+                        request.getStandardPrice() != null ? request.getStandardPrice() : java.math.BigDecimal.ZERO)
                 .priceLevel2(request.getPriceLevel2())
                 .priceLevel3(request.getPriceLevel3())
-                .minPrice(request.getMinPrice())
+                .minPrice(request.getMinPrice() != null ? request.getMinPrice() : java.math.BigDecimal.ZERO)
                 .build();
 
         return mapToDto(productRepository.save(product));
@@ -72,7 +73,11 @@ public class ProductService {
 
     private ProductDto mapToDto(Product product) {
         List<StockBatch> batches = stockBatchRepository.findAvailableBatchesForProduct(product.getId());
-        int totalStock = batches.stream().mapToInt(StockBatch::getQuantityRemaining).sum();
+        int totalStock = batches.stream()
+                .map(StockBatch::getQuantityRemaining)
+                .filter(q -> q != null)
+                .mapToInt(Integer::intValue)
+                .sum();
 
         return ProductDto.builder()
                 .id(product.getId())

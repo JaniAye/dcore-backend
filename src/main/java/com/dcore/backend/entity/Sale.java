@@ -50,7 +50,7 @@ public class Sale {
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
-    
+
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL)
     private List<SaleItem> items;
 }

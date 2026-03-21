@@ -30,10 +30,8 @@ public class ReportController {
 
     @GetMapping("/monthly-profit")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<Map<String, BigDecimal>> getMonthlyProfit(
+    public ResponseEntity<com.dcore.backend.dto.ProfitBreakdownDto> getMonthlyProfit(
             @RequestParam int year, @RequestParam int month) {
-        Map<String, BigDecimal> response = new HashMap<>();
-        response.put("profit", reportService.getMonthlyProfit(year, month));
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(reportService.getMonthlyProfit(year, month));
     }
 }

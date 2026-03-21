@@ -24,7 +24,7 @@ public class ProductController {
     public ProductDto createProduct(@RequestBody CreateProductRequest request) {
         return productService.createProduct(request);
     }
-    
+
     @GetMapping("/{id}")
     public ProductDto getProduct(@PathVariable Long id) {
         return productService.getProductById(id);
