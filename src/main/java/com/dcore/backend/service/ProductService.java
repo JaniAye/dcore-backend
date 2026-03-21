@@ -42,6 +42,28 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("Product not found"));
     }
 
+    public String generateNextItemCode() {
+        return productRepository.findTopByOrderByItemCodeDesc()
+                .map(p -> {
+                    String code = p.getItemCode();
+                    if (code != null && code.startsWith("DC-")) {
+                        try {
+                            String numPart = code.substring(3);
+                            int num = Integer.parseInt(numPart);
+                            return String.format("DC-%04d", num + 1);
+                        } catch (NumberFormatException e) {
+                            return "DC-0001";
+                        }
+                    }
+                    return "DC-0001";
+                })
+                .orElse("DC-0001");
+    }
+
+    public boolean existsByName(String name) {
+        return productRepository.existsByNameIgnoreCase(name);
+    }
+
     private ProductDto mapToDto(Product product) {
         List<StockBatch> batches = stockBatchRepository.findAvailableBatchesForProduct(product.getId());
         int totalStock = batches.stream().mapToInt(StockBatch::getQuantityRemaining).sum();

@@ -29,4 +29,14 @@ public class ProductController {
     public ProductDto getProduct(@PathVariable Long id) {
         return productService.getProductById(id);
     }
+
+    @GetMapping("/next-code")
+    public String getNextCode() {
+        return productService.generateNextItemCode();
+    }
+
+    @GetMapping("/exists")
+    public boolean checkExists(@RequestParam String name) {
+        return productService.existsByName(name);
+    }
 }

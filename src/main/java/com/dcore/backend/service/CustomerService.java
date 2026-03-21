@@ -2,6 +2,7 @@ package com.dcore.backend.service;
 
 import com.dcore.backend.dto.CreateCustomerRequest;
 import com.dcore.backend.dto.CustomerDto;
+import com.dcore.backend.dto.SaleDto;
 import com.dcore.backend.entity.Customer;
 import com.dcore.backend.entity.Payment;
 import com.dcore.backend.entity.Sale;
@@ -55,18 +56,42 @@ public class CustomerService {
                 .orElse(null);
     }
 
-    private CustomerDto mapToDto(Customer customer) {
-        List<Sale> sales = saleRepository.findAll().stream()
-                .filter(s -> s.getCustomer() != null && s.getCustomer().getId().equals(customer.getId()))
+    public List<SaleDto> getCustomerSalesHistory(Long customerId) {
+        return saleRepository.findByCustomerIdOrderByCreatedAtDesc(customerId).stream()
+                .map(this::mapSaleToDto)
                 .collect(Collectors.toList());
+    }
+
+    private SaleDto mapSaleToDto(Sale sale) {
+        // Simplified mapping for history view
+        List<Payment> payments = paymentRepository.findAll().stream()
+                .filter(p -> p.getSale().getId().equals(sale.getId()))
+                .collect(Collectors.toList());
+
+        BigDecimal totalPaid = payments.stream()
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return SaleDto.builder()
+                .id(sale.getId())
+                .invoiceId(sale.getInvoiceId())
+                .finalAmount(sale.getFinalAmount())
+                .totalAmount(sale.getTotalAmount())
+                .discountAmount(sale.getDiscountAmount())
+                .createdAt(sale.getCreatedAt())
+                .outstandingBalance(sale.getFinalAmount().subtract(totalPaid))
+                .sellerName(sale.getSeller().getName())
+                .build();
+    }
+
+    private CustomerDto mapToDto(Customer customer) {
+        List<Sale> sales = saleRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId());
 
         BigDecimal totalSalesAmt = sales.stream()
                 .map(Sale::getFinalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        List<Payment> payments = paymentRepository.findAll().stream()
-                .filter(p -> p.getSale().getCustomer() != null && p.getSale().getCustomer().getId().equals(customer.getId()))
-                .collect(Collectors.toList());
+        List<Payment> payments = paymentRepository.findBySale_Customer_Id(customer.getId());
 
         BigDecimal totalPayments = payments.stream()
                 .map(Payment::getAmount)

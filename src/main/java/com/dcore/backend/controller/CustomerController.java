@@ -2,6 +2,7 @@ package com.dcore.backend.controller;
 
 import com.dcore.backend.dto.CreateCustomerRequest;
 import com.dcore.backend.dto.CustomerDto;
+import com.dcore.backend.dto.SaleDto;
 import com.dcore.backend.service.CustomerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,5 +35,10 @@ public class CustomerController {
             return ResponseEntity.ok(customer);
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/{id}/sales")
+    public ResponseEntity<List<SaleDto>> getCustomerSalesHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(customerService.getCustomerSalesHistory(id));
     }
 }
