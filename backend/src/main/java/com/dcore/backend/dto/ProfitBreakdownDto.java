@@ -7,8 +7,8 @@ import java.math.BigDecimal;
 @Data
 @Builder
 public class ProfitBreakdownDto {
-    private BigDecimal posProfit;
-    private BigDecimal deliveryProfit;
-    private BigDecimal miscExpenses;
-    private BigDecimal totalProfit;
+    private BigDecimal totalSales;
+    private BigDecimal totalCostOfSales;
+    private BigDecimal totalMiscExpenses;
+    private BigDecimal netProfit;
 }

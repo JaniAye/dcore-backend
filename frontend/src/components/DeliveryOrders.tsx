@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { DeliveryOrderDto, CustomerDto, ProductDto, OrderStatus, DeliveryPaymentMethod } from '../types';
-import { Plus, Check, RotateCcw, Truck, ShieldCheck, List, AlertTriangle } from 'lucide-react';
+import { Plus, Check, RotateCcw, Truck, ShieldCheck, List, AlertTriangle, Search } from 'lucide-react';
 
 export const DeliveryOrders: React.FC = () => {
   const [orders, setOrders] = useState<DeliveryOrderDto[]>([]);
@@ -10,6 +10,10 @@ export const DeliveryOrders: React.FC = () => {
 
   // Create order states
   const [customerId, setCustomerId] = useState('');
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [showAddCustomerQuick, setShowAddCustomerQuick] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerMobile, setNewCustomerMobile] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<DeliveryPaymentMethod>('COD');
   const [codAmount, setCodAmount] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
@@ -117,6 +121,55 @@ export const DeliveryOrders: React.FC = () => {
     }
   };
 
+  // Customer quick-search (by id/name/mobile)
+  const handleCustomerQuery = async () => {
+    setError('');
+    if (!customerQuery) return;
+
+    // try numeric mobile search
+    if (/^\d+$/.test(customerQuery)) {
+      try {
+        const c = await api.customers.searchMobile(customerQuery);
+        setCustomerId(String(c.id));
+        return;
+      } catch (err: any) {
+        setError('Customer not found. Use + to add.');
+        setNewCustomerMobile(customerQuery);
+        setNewCustomerName('');
+        setShowAddCustomerQuick(true);
+        return;
+      }
+    }
+
+    // search locally by name
+    const found = customers.find(c => c.name.toLowerCase().includes(customerQuery.toLowerCase()) || c.mobile.includes(customerQuery));
+    if (found) {
+      setCustomerId(String(found.id));
+    } else {
+      setError('Customer not found. Use + to add.');
+      setNewCustomerName(customerQuery);
+      setNewCustomerMobile('');
+      setShowAddCustomerQuick(true);
+    }
+  };
+
+  const handleCreateCustomerQuick = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomerName || !newCustomerMobile) return;
+    setError('');
+    try {
+      const created = await api.customers.create({ name: newCustomerName, mobile: newCustomerMobile });
+      setCustomers(prev => [created, ...prev]);
+      setCustomerId(String(created.id));
+      setShowAddCustomerQuick(false);
+      setCustomerQuery('');
+      setNewCustomerName('');
+      setNewCustomerMobile('');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to create customer');
+    }
+  };
+
   const handleUpdateStatus = async (orderId: number, status: OrderStatus) => {
     setLoading(true);
     setError('');
@@ -200,17 +253,41 @@ export const DeliveryOrders: React.FC = () => {
           <form onSubmit={handleCreateOrder} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="form-group">
               <label className="form-label">Customer Profile</label>
-              <select 
-                className="form-select" 
-                value={customerId} 
-                onChange={(e) => setCustomerId(e.target.value)}
-                required
-              >
-                <option value="">Select Customer</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.mobile})</option>
-                ))}
-              </select>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Search name or mobile..."
+                  value={customerQuery}
+                  onChange={(e) => setCustomerQuery(e.target.value)}
+                />
+                <button type="button" className="btn btn-secondary" onClick={handleCustomerQuery}><Search size={14} /></button>
+                <button type="button" className="btn btn-outline" onClick={() => { setNewCustomerName(customerQuery); setShowAddCustomerQuick(true); }}><Plus size={14} /></button>
+              </div>
+
+              {showAddCustomerQuick && (
+                <form onSubmit={handleCreateCustomerQuick} className="glass-card mt-3" style={{ padding: '0.75rem' }}>
+                  <div className="form-group">
+                    <input type="text" className="form-input" placeholder="Name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} required />
+                  </div>
+                  <div className="form-group">
+                    <input type="text" className="form-input" placeholder="Mobile" value={newCustomerMobile} onChange={(e) => setNewCustomerMobile(e.target.value)} required />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button type="submit" className="btn btn-primary">Save</button>
+                    <button type="button" className="btn btn-outline" onClick={() => setShowAddCustomerQuick(false)}>Cancel</button>
+                  </div>
+                </form>
+              )}
+
+              <div style={{ marginTop: '0.5rem' }}>
+                <select className="form-select" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+                  <option value="">Select Customer</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.mobile})</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="form-row">

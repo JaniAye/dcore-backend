@@ -157,7 +157,7 @@ export const Dashboard: React.FC = () => {
       {/* Profit breakdown panels */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
         <div className="glass-panel">
-          <h2 style={{ marginBottom: '1.5rem', display: 'flex', align_items: 'center', gap: '0.5rem' }}>
+          <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span>Monthly Financial Statement</span>
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>({yearMonth})</span>
           </h2>

@@ -5,6 +5,7 @@ import {
   Package, 
   Truck, 
   Receipt, 
+  FileText,
   LogOut 
 } from 'lucide-react';
 import { Role } from '../types';
@@ -64,6 +65,14 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, user 
         >
           <Truck className="nav-icon" />
           <span>Delivery Orders</span>
+        </button>
+
+        <button
+          onClick={() => setCurrentTab('invoices')}
+          className={`nav-link ${currentTab === 'invoices' ? 'active' : ''}`}
+        >
+          <FileText className="nav-icon" />
+          <span>Invoices</span>
         </button>
 
         <button

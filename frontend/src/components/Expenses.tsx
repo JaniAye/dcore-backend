@@ -99,7 +99,7 @@ export const Expenses: React.FC = () => {
       <div className="layout-split">
         {/* Create Form */}
         <div className="glass-panel" style={{ height: 'fit-content' }}>
-          <h3 style={{ marginBottom: '1.5rem', display: 'flex', align_items: 'center', gap: '0.5rem' }}>
+          <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Receipt size={18} />
             <span>Log Expense</span>
           </h3>

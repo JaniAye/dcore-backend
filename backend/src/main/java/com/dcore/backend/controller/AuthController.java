@@ -2,6 +2,7 @@ package com.dcore.backend.controller;
 
 import com.dcore.backend.dto.JwtAuthenticationResponse;
 import com.dcore.backend.dto.LoginRequest;
+import com.dcore.backend.security.CustomUserDetails;
 import com.dcore.backend.security.JwtTokenProvider;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,13 @@ public class AuthController {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         String jwt = tokenProvider.generateToken(authentication);
-        return ResponseEntity.ok(new JwtAuthenticationResponse(jwt, "Bearer"));
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        return ResponseEntity.ok(new JwtAuthenticationResponse(
+                jwt,
+                "Bearer",
+                userDetails.getUsername(),
+                userDetails.getUser().getRole().name(),
+                userDetails.getUser().getName()
+        ));
     }
 }

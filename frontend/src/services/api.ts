@@ -32,7 +32,8 @@ const client = axios.create({
 // Automatically inject JWT token into all requests
 client.interceptors.request.use((config) => {
   const token = localStorage.getItem('dcore_token');
-  if (token && config.headers) {
+  if (token) {
+    config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -58,7 +59,13 @@ export const api = {
   auth: {
     login: async (data: any) => {
       const res = await client.post('/auth/login', data);
-      return res.data; // returns { token: "...", tokenType: "Bearer" }
+      return {
+        token: res.data.accessToken || res.data.token,
+        tokenType: res.data.tokenType || res.data.type || 'Bearer',
+        username: res.data.username,
+        role: res.data.role,
+        name: res.data.name,
+      };
     },
   },
 
@@ -154,6 +161,10 @@ export const api = {
   sales: {
     getAll: async (): Promise<SaleDto[]> => {
       const res = await client.get('/sales');
+      return res.data;
+    },
+    getFiltered: async (startDate?: string, endDate?: string): Promise<SaleDto[]> => {
+      const res = await client.get('/sales/filtered', { params: { startDate, endDate } });
       return res.data;
     },
     getById: async (id: number): Promise<SaleDto> => {

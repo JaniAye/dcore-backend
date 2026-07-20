@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -174,6 +175,19 @@ public class SaleService {
     public List<SaleDto> getAllSales() {
         return saleRepository.findAll().stream()
                 .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
+
+    public List<SaleDto> getSalesByDateRange(LocalDate startDate, LocalDate endDate) {
+        return saleRepository.findAll().stream()
+                .filter(sale -> {
+                    LocalDate saleDate = sale.getCreatedAt().toLocalDate();
+                    boolean afterStart = startDate == null || !saleDate.isBefore(startDate);
+                    boolean beforeEnd = endDate == null || !saleDate.isAfter(endDate);
+                    return afterStart && beforeEnd;
+                })
+                .map(this::mapToDto)
+                .sorted((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()))
                 .collect(Collectors.toList());
     }
 

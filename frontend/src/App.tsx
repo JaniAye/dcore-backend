@@ -6,6 +6,7 @@ import { POS } from './components/POS';
 import { Inventory } from './components/Inventory';
 import { DeliveryOrders } from './components/DeliveryOrders';
 import { Expenses } from './components/Expenses';
+import { Invoices } from './components/Invoices';
 import { Role } from './types';
 
 interface UserSession {
@@ -50,15 +51,13 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-container">
-      {/* Sidebar navigation */}
       <Navbar currentTab={currentTab} setCurrentTab={setCurrentTab} user={user} />
-      
-      {/* Main app panel */}
       <main className="main-content">
         {currentTab === 'dashboard' && user.role === 'SUPER_ADMIN' && <Dashboard />}
         {currentTab === 'pos' && <POS />}
         {currentTab === 'inventory' && <Inventory />}
         {currentTab === 'delivery' && <DeliveryOrders />}
+        {currentTab === 'invoices' && <Invoices />}
         {currentTab === 'expenses' && <Expenses />}
       </main>
     </div>

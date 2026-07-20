@@ -311,7 +311,7 @@ export const Inventory: React.FC = () => {
 
               <div className="form-group">
                 <label className="form-label">Product Image</label>
-                <div style={{ display: 'flex', align_items: 'center', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <label htmlFor="prod-img-input" className="btn btn-secondary" style={{ flex: 1, cursor: 'pointer' }}>
                     <FileImage size={16} /> Choose File
                   </label>

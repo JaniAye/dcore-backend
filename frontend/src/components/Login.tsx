@@ -21,16 +21,14 @@ export const Login: React.FC = () => {
     try {
       const response = await api.auth.login({ username, password });
       const token = response.token;
-      
-      // Decode JWT token to extract username, name, and role
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(window.atob(base64));
-      
+      if (!token) {
+        throw new Error('Invalid authentication token received.');
+      }
+
       const userData = {
-        username: payload.sub,
-        role: payload.role, // 'SUPER_ADMIN' or 'SALES_PERSON'
-        name: payload.name
+        username: response.username,
+        role: response.role,
+        name: response.name,
       };
 
       localStorage.setItem('dcore_token', token);

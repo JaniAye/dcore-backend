@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { ProductDto, CustomerDto, SaleItemRequest, DiscountLevel, SalePaymentMethod, SaleDto, StockBatchDto } from '../types';
-import { Search, Plus, ShoppingCart, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, Plus, X, ShoppingCart, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
 
 export const POS: React.FC = () => {
   // Data lists
@@ -57,26 +57,40 @@ export const POS: React.FC = () => {
     loadData();
   }, []);
 
-  // Customer search
+  // Customer search - allow free text (name) or mobile; open quick-create when not found
   const handleCustomerSearch = async () => {
-    if (!mobileQuery) return;
+    if (!mobileQuery) {
+      setCustomer(null);
+      return;
+    }
     setError('');
     try {
-      const cust = await api.customers.searchMobile(mobileQuery);
-      setCustomer(cust);
-    } catch (err: any) {
-      if (err.response?.status === 404) {
-        setError('Customer not found. You can register them below.');
-        setNewCustomerMobile(mobileQuery);
-        setShowAddCustomer(true);
-      } else {
-        setError('Error searching for customer.');
+      // If query is digits only, treat as mobile search
+      if (/^\d+$/.test(mobileQuery)) {
+        const cust = await api.customers.searchMobile(mobileQuery);
+        setCustomer(cust);
+        return;
       }
+
+      // Otherwise search by name among all customers (small dataset assumption)
+      const all = await api.customers.getAll();
+      const found = all.find(c => c.name.toLowerCase().includes(mobileQuery.toLowerCase()) || c.mobile.includes(mobileQuery));
+      if (found) {
+        setCustomer(found);
+      } else {
+        setError('Customer not found. You can register them below.');
+        setNewCustomerName(mobileQuery);
+        setNewCustomerMobile('');
+        setShowAddCustomer(true);
+        setCustomer(null);
+      }
+    } catch (err: any) {
+      setError('Error searching for customer.');
       setCustomer(null);
     }
   };
 
-  // Add customer inline
+  // Add customer inline (quick-create)
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomerName || !newCustomerMobile) return;
@@ -90,7 +104,7 @@ export const POS: React.FC = () => {
       setShowAddCustomer(false);
       setNewCustomerName('');
       setNewCustomerMobile('');
-      // Reload products/customers if needed
+      setMobileQuery('');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create customer');
     }
@@ -325,57 +339,7 @@ export const POS: React.FC = () => {
       )}
 
       <div className="layout-split-pos">
-        {/* Left Side: Product Selector Grid */}
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{
-              position: 'absolute',
-              left: '1rem',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--text-muted)'
-            }} />
-            <input 
-              type="text" 
-              className="form-input w-full" 
-              style={{ paddingLeft: '2.75rem' }} 
-              placeholder="Search products by code or name..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="pos-products-grid">
-            {filteredProducts.map(product => (
-              <div 
-                key={product.id} 
-                className="glass-card pos-product-card" 
-                onClick={() => addToCart(product)}
-              >
-                {product.imageUrl ? (
-                  <img src={product.imageUrl} alt={product.name} className="pos-product-image" />
-                ) : (
-                  <div className="pos-product-placeholder">No Image</div>
-                )}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{product.itemCode}</span>
-                  <span style={{ fontWeight: 600, fontSize: '0.9rem', lineHeight: '1.2' }}>{product.name}</span>
-                  <div className="flex justify-between align-center mt-4">
-                    <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>${product.standardPrice.toFixed(2)}</span>
-                    <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>Stock: {product.totalStock}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {filteredProducts.length === 0 && (
-              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                No products found matching "{searchTerm}"
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Side: Cart and Checkout controls */}
+        {/* Main area: Cart and Checkout controls */}
         <div className="flex-col gap-4">
           {/* Customer section */}
           <div className="glass-panel" style={{ padding: '1.5rem' }}>
@@ -386,12 +350,29 @@ export const POS: React.FC = () => {
                   <input 
                     type="text" 
                     className="form-input w-full" 
-                    placeholder="Enter mobile number..." 
+                    placeholder="Search name or mobile..." 
                     value={mobileQuery}
                     onChange={(e) => setMobileQuery(e.target.value)}
                   />
                   <button onClick={handleCustomerSearch} className="btn btn-secondary">
                     <Search size={18} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (showAddCustomer) {
+                        setShowAddCustomer(false);
+                        setNewCustomerName('');
+                        setNewCustomerMobile('');
+                      } else {
+                        setNewCustomerName(mobileQuery);
+                        setShowAddCustomer(true);
+                      }
+                    }}
+                    className={`btn ${showAddCustomer ? 'btn-secondary' : 'btn-outline'}`}
+                    type="button"
+                    aria-label={showAddCustomer ? 'Close customer form' : 'Add customer'}
+                  >
+                    {showAddCustomer ? <X size={16} /> : <Plus size={16} />}
                   </button>
                 </div>
                 {showAddCustomer && (
@@ -443,7 +424,7 @@ export const POS: React.FC = () => {
           {/* Cart items */}
           <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div className="flex justify-between align-center">
-              <h3 style={{ display: 'flex', align_items: 'center', gap: '0.5rem' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <ShoppingCart size={18} />
                 <span>Selected Items</span>
               </h3>
@@ -495,7 +476,7 @@ export const POS: React.FC = () => {
 
                     {/* Quantity & Discount */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <div style={{ display: 'flex', align_items: 'center', gap: '0.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Qty:</span>
                         <input 
                           type="number" 
@@ -508,7 +489,7 @@ export const POS: React.FC = () => {
                         />
                       </div>
                       
-                      <div style={{ display: 'flex', align_items: 'center', gap: '0.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                         <select 
                           className="form-select" 
                           style={{ padding: '0.15rem', fontSize: '0.7rem' }}
@@ -532,7 +513,7 @@ export const POS: React.FC = () => {
                     </div>
 
                     {/* Totals & delete */}
-                    <div className="text-right" style={{ display: 'flex', flexDirection: 'column', align_items: 'flex-end' }}>
+                    <div className="text-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                       <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>${itemTotal.toFixed(2)}</span>
                       {item.basePrice !== finalUnitPrice && (
                         <span style={{ fontSize: '0.7rem', textDecoration: 'line-through', color: 'var(--text-muted)' }}>
@@ -597,7 +578,7 @@ export const POS: React.FC = () => {
 
               {/* Internal transaction toggle */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ display: 'flex', align_items: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
                   <input 
                     type="checkbox" 
                     checked={isInternal} 
@@ -656,6 +637,56 @@ export const POS: React.FC = () => {
                 {loading ? 'Processing checkout...' : 'Submit Transaction'}
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Secondary area: Product selector grid */}
+        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div style={{ position: 'relative' }}>
+            <Search size={18} style={{
+              position: 'absolute',
+              left: '1rem',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-muted)'
+            }} />
+            <input 
+              type="text" 
+              className="form-input w-full" 
+              style={{ paddingLeft: '2.75rem' }} 
+              placeholder="Search products by code or name..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          <div className="pos-products-grid">
+            {filteredProducts.map(product => (
+              <div 
+                key={product.id} 
+                className="glass-card pos-product-card" 
+                onClick={() => addToCart(product)}
+              >
+                {product.imageUrl ? (
+                  <img src={product.imageUrl} alt={product.name} className="pos-product-image" />
+                ) : (
+                  <div className="pos-product-placeholder">No Image</div>
+                )}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{product.itemCode}</span>
+                  <span style={{ fontWeight: 600, fontSize: '0.9rem', lineHeight: '1.2' }}>{product.name}</span>
+                  <div className="flex justify-between align-center mt-4">
+                    <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>${product.standardPrice.toFixed(2)}</span>
+                    <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>Stock: {product.totalStock}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {filteredProducts.length === 0 && (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                No products found matching "{searchTerm}"
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -41,31 +41,35 @@ public class ReportService {
     }
 
     public ProfitBreakdownDto getMonthlyProfit(int year, int month) {
-        // 1. POS Profit
-        BigDecimal posProfit = saleService.getAllSales().stream()
+        // 1. POS Revenue and COGS
+        BigDecimal posRevenue = saleService.getAllSales().stream()
                 .filter(s -> s.getCreatedAt().getYear() == year && s.getCreatedAt().getMonthValue() == month)
                 .filter(s -> !Boolean.TRUE.equals(s.getIsInternal()))
                 .flatMap(s -> s.getItems().stream())
-                .map(item -> {
-                    BigDecimal totalCost = item.getPurchasePrice() != null 
-                        ? item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity()))
-                        : BigDecimal.ZERO;
-                    return item.getSubtotal().subtract(totalCost);
-                })
+                .map(item -> item.getSubtotal())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // 2. Delivery Orders Profit (Delivered only)
-        BigDecimal deliveryProfit = deliveryOrderService.getAllOrders().stream()
+        BigDecimal posCostOfSales = saleService.getAllSales().stream()
+                .filter(s -> s.getCreatedAt().getYear() == year && s.getCreatedAt().getMonthValue() == month)
+                .filter(s -> !Boolean.TRUE.equals(s.getIsInternal()))
+                .flatMap(s -> s.getItems().stream())
+                .map(item -> item.getPurchasePrice() != null
+                        ? item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity()))
+                        : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // 2. Delivery Revenue and COGS (Delivered only)
+        BigDecimal deliveryRevenue = deliveryOrderService.getAllOrders().stream()
                 .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
                 .filter(o -> o.getOrderDate() != null && o.getOrderDate().getYear() == year && o.getOrderDate().getMonthValue() == month)
-                .map(o -> {
-                    BigDecimal totalItemCost = o.getItems().stream()
-                        .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    
-                    // Net Revenue from items is (COD - DeliveryFee)
-                    return o.getCodAmount().subtract(o.getDeliveryFee()).subtract(totalItemCost);
-                })
+                .map(o -> o.getCodAmount().subtract(o.getDeliveryFee()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal deliveryCostOfSales = deliveryOrderService.getAllOrders().stream()
+                .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
+                .filter(o -> o.getOrderDate() != null && o.getOrderDate().getYear() == year && o.getOrderDate().getMonthValue() == month)
+                .flatMap(o -> o.getItems().stream())
+                .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // 3. Miscellaneous Expenses
@@ -74,14 +78,15 @@ public class ReportService {
                 .map(MiscExpenseDto::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Total Profit = POS + Delivery - Misc
-        BigDecimal totalProfit = posProfit.add(deliveryProfit).subtract(totalMiscExpenses);
+        BigDecimal totalSales = posRevenue.add(deliveryRevenue);
+        BigDecimal totalCostOfSales = posCostOfSales.add(deliveryCostOfSales);
+        BigDecimal netProfit = totalSales.subtract(totalCostOfSales).subtract(totalMiscExpenses);
 
         return ProfitBreakdownDto.builder()
-                .posProfit(posProfit)
-                .deliveryProfit(deliveryProfit)
-                .miscExpenses(totalMiscExpenses)
-                .totalProfit(totalProfit)
+                .totalSales(totalSales)
+                .totalCostOfSales(totalCostOfSales)
+                .totalMiscExpenses(totalMiscExpenses)
+                .netProfit(netProfit)
                 .build();
     }
 }
