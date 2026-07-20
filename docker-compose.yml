@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: dcore-db
+    restart: always
+    environment:
+      - POSTGRES_DB=dcore_db
+      - POSTGRES_USER=dcore_user
+      - POSTGRES_PASSWORD=dcore_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: dcore-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/dcore_db
+      - SPRING_DATASOURCE_USERNAME=dcore_user
+      - SPRING_DATASOURCE_PASSWORD=dcore_password
+    depends_on:
+      - db
+    volumes:
+      - uploads_data:/app/uploads/
+
+  frontend:
+    build: ./frontend
+    container_name: dcore-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  uploads_data:
