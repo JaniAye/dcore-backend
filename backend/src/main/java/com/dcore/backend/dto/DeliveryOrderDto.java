@@ -13,6 +13,7 @@ public class DeliveryOrderDto {
     private Long id;
     private String customerName;
     private String customerMobile;
+    private String deliveryDetails;
     private LocalDateTime orderDate;
     private DeliveryOrder.OrderStatus status;
     private DeliveryOrder.PaymentMethod paymentMethod;

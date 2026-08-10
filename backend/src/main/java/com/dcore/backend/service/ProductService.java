@@ -69,6 +69,12 @@ public class ProductService {
         return productRepository.existsByNameIgnoreCase(name);
     }
 
+    public List<ProductDto> searchByName(String query) {
+        return productRepository.searchByName(query).stream()
+                .map(this::mapToDto)
+                .collect(Collectors.toList());
+    }
+
     private ProductDto mapToDto(Product product) {
         List<StockBatch> batches = stockBatchRepository.findAvailableBatchesForProduct(product.getId());
         int totalStock = batches.stream()

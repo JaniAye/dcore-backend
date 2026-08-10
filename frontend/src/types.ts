@@ -162,7 +162,8 @@ export interface DeliveryOrderItemRequest {
 }
 
 export interface DeliveryOrderRequest {
-  customerId: number;
+  customerId?: number;  // Optional customer
+  deliveryDetails?: string;  // Customer delivery details (name, address, mobile)
   paymentMethod: DeliveryPaymentMethod;
   codAmount: number;
   deliveryFee: number;
@@ -178,8 +179,10 @@ export interface DeliveryOrderItemDto {
 
 export interface DeliveryOrderDto {
   id: number;
-  customerName: string;
-  customerMobile: string;
+  customerName?: string;
+  customerMobile?: string;
+  deliveryDetails?: string;
+  address?: string;
   orderDate: string;
   status: OrderStatus;
   paymentMethod: string;

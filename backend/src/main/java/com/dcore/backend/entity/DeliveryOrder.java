@@ -18,8 +18,11 @@ public class DeliveryOrder {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "customer_id", nullable = false)
+    @JoinColumn(name = "customer_id", nullable = true)
     private Customer customer;
+
+    @Column(columnDefinition = "TEXT", nullable = true)
+    private String deliveryDetails;
 
     @Column(nullable = false)
     private LocalDateTime orderDate;

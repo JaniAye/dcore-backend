@@ -9,7 +9,8 @@ import java.util.List;
 @Data
 @Builder
 public class DeliveryOrderRequest {
-    private Long customerId;
+    private Long customerId;  // Optional
+    private String deliveryDetails;  // Customer delivery details as text
     private DeliveryOrder.PaymentMethod paymentMethod;
     private BigDecimal codAmount;
     private BigDecimal deliveryFee;

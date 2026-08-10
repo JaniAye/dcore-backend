@@ -27,11 +27,15 @@ public class DeliveryOrderService {
 
     @Transactional
     public DeliveryOrderDto createOrder(DeliveryOrderRequest request) {
-        Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new RuntimeException("Customer not found"));
+        Customer customer = null;
+        if (request.getCustomerId() != null) {
+            customer = customerRepository.findById(request.getCustomerId())
+                    .orElseThrow(() -> new RuntimeException("Customer not found"));
+        }
 
         DeliveryOrder order = DeliveryOrder.builder()
                 .customer(customer)
+                .deliveryDetails(request.getDeliveryDetails())
                 .orderDate(LocalDateTime.now())
                 .status(DeliveryOrder.OrderStatus.PENDING)
                 .paymentMethod(request.getPaymentMethod())
@@ -142,8 +146,9 @@ public class DeliveryOrderService {
     private DeliveryOrderDto mapToDto(DeliveryOrder order) {
         return DeliveryOrderDto.builder()
                 .id(order.getId())
-                .customerName(order.getCustomer().getName())
-                .customerMobile(order.getCustomer().getMobile())
+                .customerName(order.getCustomer() != null ? order.getCustomer().getName() : null)
+                .customerMobile(order.getCustomer() != null ? order.getCustomer().getMobile() : null)
+                .deliveryDetails(order.getDeliveryDetails())
                 .orderDate(order.getOrderDate())
                 .status(order.getStatus())
                 .paymentMethod(order.getPaymentMethod())

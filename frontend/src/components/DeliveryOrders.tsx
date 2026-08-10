@@ -8,16 +8,16 @@ export const DeliveryOrders: React.FC = () => {
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
   const [products, setProducts] = useState<ProductDto[]>([]);
 
-  // Create order states
   const [customerId, setCustomerId] = useState('');
   const [customerQuery, setCustomerQuery] = useState('');
   const [showAddCustomerQuick, setShowAddCustomerQuick] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerMobile, setNewCustomerMobile] = useState('');
+  const [deliveryDetails, setDeliveryDetails] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<DeliveryPaymentMethod>('COD');
   const [codAmount, setCodAmount] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
-  
+
   interface SelectedItem {
     productId: number;
     quantity: number;
@@ -25,10 +25,11 @@ export const DeliveryOrders: React.FC = () => {
     stock: number;
   }
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
-  const [addItemId, setAddItemId] = useState('');
   const [addItemQty, setAddItemQty] = useState('');
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [filteredProducts, setFilteredProducts] = useState<ProductDto[]>([]);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
 
-  // Form toggle
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -52,14 +53,49 @@ export const DeliveryOrders: React.FC = () => {
     loadData();
   }, []);
 
+  const handleProductSearch = async (query: string) => {
+    setProductSearchQuery(query);
+    setShowProductDropdown(true);
+
+    if (!query.trim()) {
+      setFilteredProducts(products);
+      return;
+    }
+
+    try {
+      const results = await api.products.search(query);
+      setFilteredProducts(results);
+    } catch (err) {
+      console.error('Product search failed:', err);
+      setFilteredProducts(products.filter(p => 
+        p.name.toLowerCase().includes(query.toLowerCase())
+      ));
+    }
+  };
+
+  const handleSelectProduct = (product: ProductDto) => {
+    setProductSearchQuery(product.name);
+    setFilteredProducts([]);
+    setShowProductDropdown(false);
+  };
+
   const handleAddProductToOrder = () => {
-    if (!addItemId || !addItemQty) return;
-    const prod = products.find(p => p.id === parseInt(addItemId));
-    if (!prod) return;
+    if (!productSearchQuery || !addItemQty) {
+      setError('Please select a product and enter quantity');
+      return;
+    }
+
+    const prod = filteredProducts.find(p => p.name === productSearchQuery) || 
+                 products.find(p => p.name === productSearchQuery);
+    
+    if (!prod) {
+      setError('Product not found');
+      return;
+    }
 
     const qty = parseInt(addItemQty);
     if (qty > prod.totalStock) {
-      alert(`Only ${prod.totalStock} units available in stock.`);
+      setError(`Only ${prod.totalStock} units available in stock.`);
       return;
     }
 
@@ -67,7 +103,7 @@ export const DeliveryOrders: React.FC = () => {
     if (existingIdx > -1) {
       const updated = [...selectedItems];
       if (updated[existingIdx].quantity + qty > prod.totalStock) {
-        alert(`Cannot add. Exceeds total stock of ${prod.totalStock}.`);
+        setError(`Cannot add. Exceeds total stock of ${prod.totalStock}.`);
         return;
       }
       updated[existingIdx].quantity += qty;
@@ -80,8 +116,11 @@ export const DeliveryOrders: React.FC = () => {
         stock: prod.totalStock
       }]);
     }
-    setAddItemId('');
+    setProductSearchQuery('');
     setAddItemQty('');
+    setFilteredProducts([]);
+    setShowProductDropdown(false);
+    setError('');
   };
 
   const removeProductFromOrder = (idx: number) => {
@@ -90,17 +129,25 @@ export const DeliveryOrders: React.FC = () => {
 
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerId || selectedItems.length === 0) {
-      setError('Please select a customer and add at least one item.');
+    
+    if (!customerId && !deliveryDetails.trim()) {
+      setError('Please select a customer or enter delivery details.');
       return;
     }
+
+    if (selectedItems.length === 0) {
+      setError('Please add at least one item.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
       await api.deliveryOrders.create({
-        customerId: parseInt(customerId),
+        customerId: customerId ? parseInt(customerId) : undefined,
+        deliveryDetails: deliveryDetails.trim() || undefined,
         paymentMethod,
         codAmount: codAmount ? parseFloat(codAmount) : 0,
         deliveryFee: deliveryFee ? parseFloat(deliveryFee) : 0,
@@ -108,6 +155,7 @@ export const DeliveryOrders: React.FC = () => {
       });
       setSuccess('Delivery order created successfully!');
       setCustomerId('');
+      setDeliveryDetails('');
       setPaymentMethod('COD');
       setCodAmount('');
       setDeliveryFee('');
@@ -121,12 +169,10 @@ export const DeliveryOrders: React.FC = () => {
     }
   };
 
-  // Customer quick-search (by id/name/mobile)
   const handleCustomerQuery = async () => {
     setError('');
     if (!customerQuery) return;
 
-    // try numeric mobile search
     if (/^\d+$/.test(customerQuery)) {
       try {
         const c = await api.customers.searchMobile(customerQuery);
@@ -141,7 +187,6 @@ export const DeliveryOrders: React.FC = () => {
       }
     }
 
-    // search locally by name
     const found = customers.find(c => c.name.toLowerCase().includes(customerQuery.toLowerCase()) || c.mobile.includes(customerQuery));
     if (found) {
       setCustomerId(String(found.id));
@@ -252,7 +297,7 @@ export const DeliveryOrders: React.FC = () => {
           <h2 style={{ marginBottom: '1.5rem' }}>Create Delivery Dispatch</h2>
           <form onSubmit={handleCreateOrder} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="form-group">
-              <label className="form-label">Customer Profile</label>
+              <label className="form-label">Customer Profile (Optional)</label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input
                   type="text"
@@ -288,6 +333,20 @@ export const DeliveryOrders: React.FC = () => {
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Delivery Details (Name, Address, Mobile)</label>
+              <textarea
+                className="form-input"
+                style={{ minHeight: '100px', fontFamily: 'inherit', resize: 'vertical' }}
+                placeholder="Enter delivery recipient name, address, contact numbers and any special instructions..."
+                value={deliveryDetails}
+                onChange={(e) => setDeliveryDetails(e.target.value)}
+              />
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                Required if no customer is selected
+              </p>
             </div>
 
             <div className="form-row">
@@ -326,36 +385,82 @@ export const DeliveryOrders: React.FC = () => {
               />
             </div>
 
-            {/* Add items to order */}
             <div style={{ borderTop: '1px dashed var(--border-glass)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <span className="form-label">Select Package Contents</span>
               
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <select 
-                  className="form-select" 
-                  style={{ flex: 3 }}
-                  value={addItemId} 
-                  onChange={(e) => setAddItemId(e.target.value)}
-                >
-                  <option value="">Choose Product</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} (Stock: {p.totalStock})</option>
-                  ))}
-                </select>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  style={{ flex: 1 }}
-                  placeholder="Qty" 
-                  value={addItemQty}
-                  onChange={(e) => setAddItemQty(e.target.value)}
-                />
-                <button type="button" onClick={handleAddProductToOrder} className="btn btn-secondary">
-                  Add Item
-                </button>
+              <div style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ flex: 3, position: 'relative' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Search product by name..."
+                      value={productSearchQuery}
+                      onChange={(e) => handleProductSearch(e.target.value)}
+                      onFocus={() => {
+                        setShowProductDropdown(true);
+                        if (!productSearchQuery) {
+                          setFilteredProducts(products);
+                        }
+                      }}
+                    />
+                    {showProductDropdown && filteredProducts.length > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        background: 'var(--bg-glass)',
+                        border: '1px solid var(--border-glass)',
+                        borderRadius: 'var(--radius-md)',
+                        marginTop: '0.25rem',
+                        maxHeight: '250px',
+                        overflowY: 'auto',
+                        zIndex: 10
+                      }}>
+                        {filteredProducts.map(p => (
+                          <div
+                            key={p.id}
+                            onClick={() => handleSelectProduct(p)}
+                            style={{
+                              padding: '0.75rem 1rem',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid var(--border-glass)'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = 'var(--bg-secondary)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = 'transparent';
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <strong>{p.name}</strong>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                  Stock: {p.totalStock} | ${p.standardPrice.toFixed(2)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    style={{ flex: 1 }}
+                    placeholder="Qty" 
+                    value={addItemQty}
+                    onChange={(e) => setAddItemQty(e.target.value)}
+                  />
+                  <button type="button" onClick={handleAddProductToOrder} className="btn btn-secondary">
+                    Add Item
+                  </button>
+                </div>
               </div>
 
-              {/* Items List */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                 {selectedItems.map((item, idx) => (
                   <div key={idx} className="flex justify-between align-center glass-card" style={{ padding: '0.5rem 1rem' }}>
@@ -398,8 +503,10 @@ export const DeliveryOrders: React.FC = () => {
                   <tr key={order.id}>
                     <td><code>#{order.id}</code></td>
                     <td>
-                      <strong>{order.customerName}</strong>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{order.customerMobile}</p>
+                      <strong>{order.customerName || 'N/A'}</strong>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {order.customerMobile || (order.deliveryDetails ? 'Custom' : 'No details')}
+                      </p>
                     </td>
                     <td>{new Date(order.orderDate).toLocaleDateString()}</td>
                     <td>${order.deliveryFee.toFixed(2)}</td>

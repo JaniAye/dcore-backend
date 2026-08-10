@@ -115,6 +115,10 @@ export const api = {
       const res = await client.get(`/products/exists`, { params: { name } });
       return res.data;
     },
+    search: async (query: string): Promise<ProductDto[]> => {
+      const res = await client.get(`/products/search`, { params: { query } });
+      return res.data;
+    },
   },
 
   // Customers

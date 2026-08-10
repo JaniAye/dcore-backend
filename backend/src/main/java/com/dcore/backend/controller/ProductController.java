@@ -39,4 +39,10 @@ public class ProductController {
     public boolean checkExists(@RequestParam String name) {
         return productService.existsByName(name);
     }
+
+    @GetMapping("/search")
+    public List<ProductDto> searchProducts(@RequestParam String query) {
+        return productService.searchByName(query);
+    }
+
 }
