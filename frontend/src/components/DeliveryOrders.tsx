@@ -1,18 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { DeliveryOrderDto, CustomerDto, ProductDto, OrderStatus, DeliveryPaymentMethod } from '../types';
-import { Plus, Check, RotateCcw, Truck, ShieldCheck, List, AlertTriangle, Search } from 'lucide-react';
+import { DeliveryOrderDto, ProductDto, OrderStatus, DeliveryPaymentMethod } from '../types';
+import { Check, RotateCcw, Truck, ShieldCheck, List, AlertTriangle } from 'lucide-react';
 
 export const DeliveryOrders: React.FC = () => {
   const [orders, setOrders] = useState<DeliveryOrderDto[]>([]);
-  const [customers, setCustomers] = useState<CustomerDto[]>([]);
   const [products, setProducts] = useState<ProductDto[]>([]);
 
-  const [customerId, setCustomerId] = useState('');
-  const [customerQuery, setCustomerQuery] = useState('');
-  const [showAddCustomerQuick, setShowAddCustomerQuick] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState('');
-  const [newCustomerMobile, setNewCustomerMobile] = useState('');
   const [deliveryDetails, setDeliveryDetails] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<DeliveryPaymentMethod>('COD');
   const [codAmount, setCodAmount] = useState('');
@@ -40,8 +34,6 @@ export const DeliveryOrders: React.FC = () => {
     try {
       const o = await api.deliveryOrders.getAll();
       setOrders(o);
-      const c = await api.customers.getAll();
-      setCustomers(c);
       const p = await api.products.getAll();
       setProducts(p);
     } catch (err) {
@@ -130,8 +122,8 @@ export const DeliveryOrders: React.FC = () => {
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!customerId && !deliveryDetails.trim()) {
-      setError('Please select a customer or enter delivery details.');
+    if (!deliveryDetails.trim()) {
+      setError('Please enter delivery details.');
       return;
     }
 
@@ -146,15 +138,13 @@ export const DeliveryOrders: React.FC = () => {
 
     try {
       await api.deliveryOrders.create({
-        customerId: customerId ? parseInt(customerId) : undefined,
-        deliveryDetails: deliveryDetails.trim() || undefined,
+        deliveryDetails: deliveryDetails.trim(),
         paymentMethod,
         codAmount: codAmount ? parseFloat(codAmount) : 0,
         deliveryFee: deliveryFee ? parseFloat(deliveryFee) : 0,
         items: selectedItems.map(i => ({ productId: i.productId, quantity: i.quantity }))
       });
       setSuccess('Delivery order created successfully!');
-      setCustomerId('');
       setDeliveryDetails('');
       setPaymentMethod('COD');
       setCodAmount('');
@@ -163,55 +153,9 @@ export const DeliveryOrders: React.FC = () => {
       setShowCreateForm(false);
       loadData();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create delivery order');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to create delivery order');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleCustomerQuery = async () => {
-    setError('');
-    if (!customerQuery) return;
-
-    if (/^\d+$/.test(customerQuery)) {
-      try {
-        const c = await api.customers.searchMobile(customerQuery);
-        setCustomerId(String(c.id));
-        return;
-      } catch (err: any) {
-        setError('Customer not found. Use + to add.');
-        setNewCustomerMobile(customerQuery);
-        setNewCustomerName('');
-        setShowAddCustomerQuick(true);
-        return;
-      }
-    }
-
-    const found = customers.find(c => c.name.toLowerCase().includes(customerQuery.toLowerCase()) || c.mobile.includes(customerQuery));
-    if (found) {
-      setCustomerId(String(found.id));
-    } else {
-      setError('Customer not found. Use + to add.');
-      setNewCustomerName(customerQuery);
-      setNewCustomerMobile('');
-      setShowAddCustomerQuick(true);
-    }
-  };
-
-  const handleCreateCustomerQuick = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCustomerName || !newCustomerMobile) return;
-    setError('');
-    try {
-      const created = await api.customers.create({ name: newCustomerName, mobile: newCustomerMobile });
-      setCustomers(prev => [created, ...prev]);
-      setCustomerId(String(created.id));
-      setShowAddCustomerQuick(false);
-      setCustomerQuery('');
-      setNewCustomerName('');
-      setNewCustomerMobile('');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to create customer');
     }
   };
 
@@ -297,56 +241,15 @@ export const DeliveryOrders: React.FC = () => {
           <h2 style={{ marginBottom: '1.5rem' }}>Create Delivery Dispatch</h2>
           <form onSubmit={handleCreateOrder} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="form-group">
-              <label className="form-label">Customer Profile (Optional)</label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Search name or mobile..."
-                  value={customerQuery}
-                  onChange={(e) => setCustomerQuery(e.target.value)}
-                />
-                <button type="button" className="btn btn-secondary" onClick={handleCustomerQuery}><Search size={14} /></button>
-                <button type="button" className="btn btn-outline" onClick={() => { setNewCustomerName(customerQuery); setShowAddCustomerQuick(true); }}><Plus size={14} /></button>
-              </div>
-
-              {showAddCustomerQuick && (
-                <form onSubmit={handleCreateCustomerQuick} className="glass-card mt-3" style={{ padding: '0.75rem' }}>
-                  <div className="form-group">
-                    <input type="text" className="form-input" placeholder="Name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} required />
-                  </div>
-                  <div className="form-group">
-                    <input type="text" className="form-input" placeholder="Mobile" value={newCustomerMobile} onChange={(e) => setNewCustomerMobile(e.target.value)} required />
-                  </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button type="submit" className="btn btn-primary">Save</button>
-                    <button type="button" className="btn btn-outline" onClick={() => setShowAddCustomerQuick(false)}>Cancel</button>
-                  </div>
-                </form>
-              )}
-
-              <div style={{ marginTop: '0.5rem' }}>
-                <select className="form-select" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                  <option value="">Select Customer</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.mobile})</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Delivery Details (Name, Address, Mobile)</label>
+              <label className="form-label">Delivery Details (Name, Address, Mobile) *</label>
               <textarea
                 className="form-input"
                 style={{ minHeight: '100px', fontFamily: 'inherit', resize: 'vertical' }}
                 placeholder="Enter delivery recipient name, address, contact numbers and any special instructions..."
                 value={deliveryDetails}
                 onChange={(e) => setDeliveryDetails(e.target.value)}
+                required
               />
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                Required if no customer is selected
-              </p>
             </div>
 
             <div className="form-row">
@@ -489,7 +392,7 @@ export const DeliveryOrders: React.FC = () => {
               <thead>
                 <tr>
                   <th>Order ID</th>
-                  <th>Customer</th>
+                  <th>Delivery Details</th>
                   <th>Order Date</th>
                   <th>Fee</th>
                   <th>Payment Type</th>
@@ -503,10 +406,7 @@ export const DeliveryOrders: React.FC = () => {
                   <tr key={order.id}>
                     <td><code>#{order.id}</code></td>
                     <td>
-                      <strong>{order.customerName || 'N/A'}</strong>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        {order.customerMobile || (order.deliveryDetails ? 'Custom' : 'No details')}
-                      </p>
+                      {order.deliveryDetails || 'N/A'}
                     </td>
                     <td>{new Date(order.orderDate).toLocaleDateString()}</td>
                     <td>${order.deliveryFee.toFixed(2)}</td>
