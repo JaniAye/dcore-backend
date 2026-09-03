@@ -199,6 +199,9 @@ export const api = {
       const res = await client.patch(`/delivery-orders/${id}/status`, null, { params: { status } });
       return res.data;
     },
+    delete: async (id: number): Promise<void> => {
+      await client.delete(`/delivery-orders/${id}`);
+    },
     autoComplete: async (): Promise<number> => {
       const res = await client.post('/delivery-orders/auto-complete');
       return res.data;

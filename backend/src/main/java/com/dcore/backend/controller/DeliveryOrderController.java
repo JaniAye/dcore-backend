@@ -34,6 +34,12 @@ public class DeliveryOrderController {
         return ResponseEntity.ok(deliveryOrderService.updateStatus(id, status));
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteOrder(@PathVariable Long id) {
+        deliveryOrderService.deletePendingOrder(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/auto-complete")
     public ResponseEntity<Integer> autoComplete() {
         return ResponseEntity.ok(deliveryOrderService.autoCompleteOldOrders());

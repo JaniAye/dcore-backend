@@ -453,6 +453,30 @@ td {
   color: var(--text-primary);
 }
 
+.delivery-items-cell {
+  min-width: 220px;
+  white-space: normal;
+}
+
+.delivery-item-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.2rem 0;
+}
+
+@media (max-width: 768px) {
+  .delivery-items-cell {
+    min-width: 180px;
+  }
+
+  .delivery-item-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+}
+
 tr:last-child td {
   border-bottom: none;
 }

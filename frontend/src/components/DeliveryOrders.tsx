@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { DeliveryOrderDto, ProductDto, OrderStatus, DeliveryPaymentMethod } from '../types';
-import { Check, RotateCcw, Truck, ShieldCheck, List, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, RotateCcw, Truck, ShieldCheck, List, AlertTriangle, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 
 export const DeliveryOrders: React.FC = () => {
   const [orders, setOrders] = useState<DeliveryOrderDto[]>([]);
@@ -26,6 +26,9 @@ export const DeliveryOrders: React.FC = () => {
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [pendingOrderIndex, setPendingOrderIndex] = useState(0);
+  const [orderStatusFilter, setOrderStatusFilter] = useState<'ALL' | OrderStatus>('ALL');
+  const [orderDateFilter, setOrderDateFilter] = useState('');
+  const [orderProductFilter, setOrderProductFilter] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,6 +36,13 @@ export const DeliveryOrders: React.FC = () => {
 
   const pendingOrders = orders.filter(order => order.status === 'PENDING');
   const pendingOrder = pendingOrders[pendingOrderIndex];
+  const orderProductNames = Array.from(new Set(orders.flatMap(order => order.items.map(item => item.productName)))).sort();
+  const filteredOrders = orders.filter(order => {
+    const matchesStatus = orderStatusFilter === 'ALL' || order.status === orderStatusFilter;
+    const matchesDate = !orderDateFilter || order.orderDate.startsWith(orderDateFilter);
+    const matchesProduct = !orderProductFilter || order.items.some(item => item.productName === orderProductFilter);
+    return matchesStatus && matchesDate && matchesProduct;
+  });
 
   const loadData = async () => {
     try {
@@ -191,6 +201,23 @@ export const DeliveryOrders: React.FC = () => {
       loadData();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to auto-complete orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId: number) => {
+    if (!confirm(`Delete pending order #${orderId}?`)) return;
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      await api.deliveryOrders.delete(orderId);
+      setSuccess(`Order #${orderId} deleted successfully.`);
+      setPendingOrderIndex(index => Math.max(0, Math.min(index, pendingOrders.length - 2)));
+      loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to delete order');
     } finally {
       setLoading(false);
     }
@@ -466,13 +493,52 @@ export const DeliveryOrders: React.FC = () => {
           </div>
 
         <div className="glass-panel">
-          <h2 style={{ marginBottom: '1rem' }}>Active Shipments Log</h2>
+          <h2 style={{ marginBottom: '1rem' }}>Delivery Orders</h2>
+          <div className="form-row" style={{ marginBottom: '1rem' }}>
+            <div className="form-group">
+              <label className="form-label">Filter by Status</label>
+              <select
+                className="form-select"
+                value={orderStatusFilter}
+                onChange={(e) => setOrderStatusFilter(e.target.value as 'ALL' | OrderStatus)}
+              >
+                <option value="ALL">All statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="READY">Ready</option>
+                <option value="DELIVERED">Delivered</option>
+                <option value="RETURNED">Returned</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Filter by Order Date</label>
+              <input
+                type="date"
+                className="form-input"
+                value={orderDateFilter}
+                onChange={(e) => setOrderDateFilter(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Filter by Product</label>
+              <select
+                className="form-select"
+                value={orderProductFilter}
+                onChange={(e) => setOrderProductFilter(e.target.value)}
+              >
+                <option value="">All products</option>
+                {orderProductNames.map(productName => (
+                  <option key={productName} value={productName}>{productName}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="table-container">
             <table>
               <thead>
                 <tr>
                   <th>Order ID</th>
                   <th>Delivery Details</th>
+                  <th>Items and Quantities</th>
                   <th>Order Date</th>
                   <th>Fee</th>
                   <th>Payment Type</th>
@@ -482,11 +548,19 @@ export const DeliveryOrders: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {orders.map(order => (
+                {filteredOrders.map(order => (
                   <tr key={order.id}>
                     <td><code>#{order.id}</code></td>
                     <td>
                       {order.deliveryDetails || 'N/A'}
+                    </td>
+                    <td className="delivery-items-cell">
+                      {order.items.map(item => (
+                        <div key={`${order.id}-${item.productId}`} className="delivery-item-row">
+                          <span>{item.productName}</span>
+                          <strong>Qty: {item.quantity}</strong>
+                        </div>
+                      ))}
                     </td>
                     <td>{new Date(order.orderDate).toLocaleDateString()}</td>
                     <td>${order.deliveryFee.toFixed(2)}</td>
@@ -504,7 +578,16 @@ export const DeliveryOrders: React.FC = () => {
                     </td>
                     <td>
                       <div className="flex gap-2">
-                        {(order.status === 'PENDING' || order.status === 'READY') && (
+                        {order.status === 'PENDING' && (
+                          <button
+                            onClick={() => handleDeleteOrder(order.id)}
+                            className="btn btn-danger"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          >
+                            <Trash2 size={12} /> Delete Order
+                          </button>
+                        )}
+                        {order.status === 'READY' && (
                           <>
                             <button 
                               onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
@@ -520,19 +603,46 @@ export const DeliveryOrders: React.FC = () => {
                             >
                               <RotateCcw size={12} /> Return
                             </button>
+                            <button
+                              onClick={() => handleUpdateStatus(order.id, 'PENDING')}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            >
+                              Mark Pending
+                            </button>
                           </>
                         )}
-                        {order.status !== 'PENDING' && order.status !== 'READY' && (
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Locked</span>
+                        {order.status === 'DELIVERED' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateStatus(order.id, 'RETURNED')}
+                              className="btn btn-danger"
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            >
+                              <RotateCcw size={12} /> Return
+                            </button>
+                            <button
+                              onClick={() => handleUpdateStatus(order.id, 'PENDING')}
+                              className="btn btn-secondary"
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            >
+                              Mark Pending
+                            </button>
+                          </>
+                        )}
+                        {order.status === 'RETURNED' && (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Cancelled</span>
                         )}
                       </div>
                     </td>
                   </tr>
                 ))}
-                {orders.length === 0 && (
+                {filteredOrders.length === 0 && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
-                      No delivery orders registered yet. Click "+ New Delivery Order" to create one.
+                    <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                      {orders.length === 0
+                        ? 'No delivery orders registered yet. Click "+ New Delivery Order" to create one.'
+                        : 'No delivery orders match the selected filters.'}
                     </td>
                   </tr>
                 )}

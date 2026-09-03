@@ -109,6 +109,12 @@ public class DeliveryOrderService {
             throw new RuntimeException("Cannot change status of a returned order");
         }
 
+        if (newStatus == DeliveryOrder.OrderStatus.PENDING
+                && order.getStatus() != DeliveryOrder.OrderStatus.READY
+                && order.getStatus() != DeliveryOrder.OrderStatus.DELIVERED) {
+            throw new RuntimeException("Only ready or delivered orders can be marked pending");
+        }
+
         if (newStatus == DeliveryOrder.OrderStatus.RETURNED && order.getStatus() != DeliveryOrder.OrderStatus.RETURNED) {
             // Restock items
             for (DeliveryOrderItem item : order.getItems()) {
@@ -120,6 +126,21 @@ public class DeliveryOrderService {
 
         order.setStatus(newStatus);
         return mapToDto(deliveryOrderRepository.save(order));
+    }
+
+    @Transactional
+    public void deletePendingOrder(Long orderId) {
+        DeliveryOrder order = deliveryOrderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        if (order.getStatus() != DeliveryOrder.OrderStatus.PENDING) {
+            throw new RuntimeException("Only pending orders can be deleted");
+        }
+        for (DeliveryOrderItem item : order.getItems()) {
+            StockBatch batch = item.getBatch();
+            batch.setQuantityRemaining(batch.getQuantityRemaining() + item.getQuantity());
+            stockBatchRepository.save(batch);
+        }
+        deliveryOrderRepository.delete(order);
     }
 
     @Transactional
