@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { DeliveryOrderDto, ProductDto, ProfitBreakdownDto } from '../types';
+import { DeliveryOrderDto, MiscExpenseDto, ProductDto, ProfitBreakdownDto } from '../types';
 import { InventoryStockFilter } from './Inventory';
 import { 
   TrendingUp, 
@@ -16,15 +16,17 @@ import {
 interface DashboardProps {
   onOpenDeliveryOrders: () => void;
   onOpenInventory: (filter: InventoryStockFilter) => void;
+  onOpenExpenses: (month: string) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOpenInventory }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOpenInventory, onOpenExpenses }) => {
   const [dailySales, setDailySales] = useState<number>(0);
   const [monthlyReport, setMonthlyReport] = useState<ProfitBreakdownDto | null>(null);
   const [productCount, setProductCount] = useState<number>(0);
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [customerCount, setCustomerCount] = useState<number>(0);
   const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrderDto[]>([]);
+  const [expenses, setExpenses] = useState<MiscExpenseDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -65,6 +67,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
       // Delivery metrics are derived from the same order data used by Delivery Management.
       const orders = await api.deliveryOrders.getAll();
       setDeliveryOrders(orders);
+
+      const expenses = await api.miscExpenses.getAll();
+      setExpenses(expenses);
     } catch (err: any) {
       console.error(err);
       setError('Failed to fetch dashboard reports. Ensure your session has Super Admin privileges.');
@@ -88,6 +93,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
     .reduce((total, order) => total + order.items.reduce((orderTotal, item) => (
       orderTotal + (item.sellingPrice || 0) * item.quantity
     ), 0), 0);
+  const monthlyExpenses = expenses.filter(expense => expense.expenseDate?.startsWith(yearMonth));
+  const expenseTotals = {
+    facebook: monthlyExpenses.filter(expense => expense.category === 'Facebook Bill').reduce((total, expense) => total + expense.amount, 0),
+    rentals: monthlyExpenses.filter(expense => expense.category === 'Rentals').reduce((total, expense) => total + expense.amount, 0),
+    packaging: monthlyExpenses.filter(expense => expense.category === 'Packaging').reduce((total, expense) => total + expense.amount, 0),
+    other: monthlyExpenses.filter(expense => !['Facebook Bill', 'Rentals', 'Packaging'].includes(expense.category)).reduce((total, expense) => total + expense.amount, 0)
+  };
 
   if (loading && !monthlyReport) {
     return <div className="text-center mt-4">Loading dashboard insights...</div>;
@@ -236,6 +248,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
 
       {/* Profit breakdown panels */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
+        <button type="button" className="glass-panel" onClick={() => onOpenExpenses(yearMonth)} style={{ textAlign: 'left', color: 'inherit', cursor: 'pointer' }}>
+          <h2 style={{ marginBottom: '1rem' }}>Monthly Operating Expenses ({yearMonth})</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
+            <div>
+              <span className="form-label">Facebook Bills</span>
+              <p className="stat-value" style={{ fontSize: '1.25rem' }}>${expenseTotals.facebook.toFixed(2)}</p>
+            </div>
+            <div>
+              <span className="form-label">Rentals</span>
+              <p className="stat-value" style={{ fontSize: '1.25rem' }}>${expenseTotals.rentals.toFixed(2)}</p>
+            </div>
+            <div>
+              <span className="form-label">Packaging</span>
+              <p className="stat-value" style={{ fontSize: '1.25rem' }}>${expenseTotals.packaging.toFixed(2)}</p>
+            </div>
+            <div>
+              <span className="form-label">Other Expenses</span>
+              <p className="stat-value" style={{ fontSize: '1.25rem' }}>${expenseTotals.other.toFixed(2)}</p>
+            </div>
+          </div>
+        </button>
         <div className="glass-panel">
           <h2 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <span>Monthly Financial Statement</span>

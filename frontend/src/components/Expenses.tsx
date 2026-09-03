@@ -3,12 +3,17 @@ import { api } from '../services/api';
 import { MiscExpenseDto } from '../types';
 import { Plus, Trash2, Receipt } from 'lucide-react';
 
-export const Expenses: React.FC = () => {
+interface ExpensesProps {
+  monthFilter?: string;
+}
+
+export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
   const [expenses, setExpenses] = useState<MiscExpenseDto[]>([]);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const expenseCategories = ['Facebook Bill', 'Packaging', 'Rentals'];
   const [filterDate, setFilterDate] = useState('');
+  const [filterMonth, setFilterMonth] = useState(monthFilter || '');
   const [filterDescription, setFilterDescription] = useState('');
   
   const [loading, setLoading] = useState(false);
@@ -17,10 +22,11 @@ export const Expenses: React.FC = () => {
 
   const filteredExpenses = expenses.filter(expense => {
     const matchesDate = !filterDate || expense.expenseDate === filterDate;
+    const matchesMonth = !filterMonth || expense.expenseDate?.startsWith(filterMonth);
     const matchesDescription = !filterDescription
       || expense.category === filterDescription
       || expense.description.toLowerCase().includes(filterDescription.toLowerCase());
-    return matchesDate && matchesDescription;
+    return matchesDate && matchesMonth && matchesDescription;
   });
 
   const loadExpenses = async () => {
@@ -35,6 +41,13 @@ export const Expenses: React.FC = () => {
   useEffect(() => {
     loadExpenses();
   }, []);
+
+  useEffect(() => {
+    if (monthFilter) {
+      setFilterMonth(monthFilter);
+      setFilterDate('');
+    }
+  }, [monthFilter]);
 
   const handleAddExpense = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,6 +169,15 @@ export const Expenses: React.FC = () => {
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1rem' }}>Operating Expenses Ledger</h3>
           <div className="form-row" style={{ marginBottom: '1rem' }}>
+            <div className="form-group">
+              <label className="form-label">Filter by Month</label>
+              <input
+                type="month"
+                className="form-input"
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+              />
+            </div>
             <div className="form-group">
               <label className="form-label">Filter by Log Date</label>
               <input

@@ -21,6 +21,7 @@ export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<string>('pos');
   const [token, setToken] = useState<string | null>(null);
   const [inventoryStockFilter, setInventoryStockFilter] = useState<InventoryStockFilter>('ALL');
+  const [expenseMonthFilter, setExpenseMonthFilter] = useState('');
 
   const syncAuthState = () => {
     const t = localStorage.getItem('dcore_token');
@@ -62,13 +63,17 @@ export const App: React.FC = () => {
               setInventoryStockFilter(filter);
               setCurrentTab('inventory');
             }}
+            onOpenExpenses={(month) => {
+              setExpenseMonthFilter(month);
+              setCurrentTab('expenses');
+            }}
           />
         )}
         {currentTab === 'pos' && <POS />}
         {currentTab === 'inventory' && <Inventory stockFilter={inventoryStockFilter} />}
         {currentTab === 'delivery' && <DeliveryOrders />}
         {currentTab === 'invoices' && <Invoices />}
-        {currentTab === 'expenses' && <Expenses />}
+        {currentTab === 'expenses' && <Expenses monthFilter={expenseMonthFilter} />}
       </main>
     </div>
   );
