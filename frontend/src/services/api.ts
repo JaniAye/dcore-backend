@@ -22,6 +22,61 @@ import {
 
 const API_BASE = '/api';
 
+const compressImage = (file: File): Promise<File> => {
+  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
+    return Promise.resolve(file);
+  }
+
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxDimension = 480;
+      const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        reject(new Error('Unable to prepare the product image.'));
+        return;
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const createFile = (blob: Blob) => {
+        const extension = blob.type === 'image/webp' ? 'webp' : 'jpg';
+        return new File([blob], `product-image.${extension}`, { type: blob.type });
+      };
+      const handleCompressedBlob = (blob: Blob | null) => {
+        if (!blob) {
+          reject(new Error('Unable to compress the product image.'));
+          return;
+        }
+        if (blob.type === 'image/webp') {
+          resolve(createFile(blob));
+          return;
+        }
+        canvas.toBlob((jpegBlob) => {
+          if (!jpegBlob) {
+            reject(new Error('Unable to compress the product image.'));
+            return;
+          }
+          resolve(createFile(jpegBlob));
+        }, 'image/jpeg', 0.72);
+      };
+      canvas.toBlob(handleCompressedBlob, 'image/webp', 0.72);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Unable to read the product image.'));
+    };
+    image.src = objectUrl;
+  });
+};
+
 const client = axios.create({
   baseURL: API_BASE,
   headers: {
@@ -226,8 +281,9 @@ export const api = {
   // Uploads
   uploads: {
     uploadImage: async (file: File): Promise<string> => {
+      const optimizedFile = await compressImage(file);
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', optimizedFile);
       const res = await axios.post(`${API_BASE}/uploads/image`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
