@@ -202,6 +202,8 @@ export const POS: React.FC = () => {
   };
 
   const { subtotal, discount, final } = getCartTotals();
+  const enteredPaymentAmount = parseFloat(paymentAmount) || 0;
+  const paymentDifference = enteredPaymentAmount - (isInternal ? 0 : final);
 
   // Reset states on success checkout view close
   const handleNewSale = () => {
@@ -216,6 +218,12 @@ export const POS: React.FC = () => {
     setSuccessSale(null);
     loadData(); // refresh stock
   };
+
+  useEffect(() => {
+    if (!successSale) return;
+    const timer = window.setTimeout(handleNewSale, 4000);
+    return () => window.clearTimeout(timer);
+  }, [successSale]);
 
   // Submit sale
   const handleCheckout = async () => {
@@ -253,13 +261,13 @@ export const POS: React.FC = () => {
         internalReason: isInternal ? internalReason : undefined,
         paymentAmount: paymentMethod === 'CREDIT'
           ? (paymentAmount ? parseFloat(paymentAmount) : undefined)
-          : (paymentAmount ? parseFloat(paymentAmount) : final),
+          : final,
         paymentMethod: isInternal ? undefined : paymentMethod
       });
       setSuccessSale(sale);
     } catch (err: any) {
       console.error(err);
-      setError(err.response?.data?.message || err.message || 'Checkout failed. Verify inventory and pricing floor levels.');
+      setError(err.response?.data?.error || err.response?.data?.message || err.message || 'Checkout failed. Verify inventory and pricing floor levels.');
     } finally {
       setLoading(false);
     }
@@ -270,58 +278,6 @@ export const POS: React.FC = () => {
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     p.itemCode.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  if (successSale) {
-    return (
-      <div className="flex-col align-center justify-between" style={{ padding: '3rem 1rem', maxWidth: '600px', margin: '0 auto' }}>
-        <div className="glass-panel w-full text-center" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <CheckCircle size={64} style={{ color: 'var(--accent-success)', margin: '0 auto' }} />
-          <h2>Sale Completed Successfully</h2>
-          <p style={{ color: 'var(--text-secondary)' }}>Invoice Code: <strong style={{ color: '#fff' }}>{successSale.invoiceId}</strong></p>
-          
-          <div style={{
-            textAlign: 'left',
-            background: 'rgba(255,255,255,0.02)',
-            padding: '1.5rem',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-glass)',
-            fontSize: '0.95rem'
-          }}>
-            <div className="flex justify-between mb-4">
-              <span>Customer:</span>
-              <strong>{successSale.customerName || 'Walk-in Cash Customer'}</strong>
-            </div>
-            <div className="flex justify-between mb-4">
-              <span>Sold By:</span>
-              <span>{successSale.sellerName}</span>
-            </div>
-            <div className="flex justify-between mb-4">
-              <span>Total Before Discount:</span>
-              <span>${successSale.totalAmount.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between mb-4">
-              <span>Item Discounts:</span>
-              <span className="text-danger">-${successSale.discountAmount.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between mb-4" style={{ fontSize: '1.15rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1rem' }}>
-              <strong>Total Invoice:</strong>
-              <strong className="text-accent">${successSale.finalAmount.toFixed(2)}</strong>
-            </div>
-            <div className="flex justify-between">
-              <span>Outstanding Balance:</span>
-              <strong className={successSale.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>
-                ${successSale.outstandingBalance.toFixed(2)}
-              </strong>
-            </div>
-          </div>
-
-          <button onClick={handleNewSale} className="btn btn-primary mt-4">
-            Start New POS checkout
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex-col gap-4">
@@ -607,7 +563,7 @@ export const POS: React.FC = () => {
                   <input 
                     type="number" 
                     className="form-input" 
-                    placeholder={final.toFixed(2)}
+                    placeholder={paymentMethod === 'CREDIT' ? 'Optional partial payment' : final.toFixed(2)}
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                   />
@@ -631,6 +587,13 @@ export const POS: React.FC = () => {
                 <strong>Payable Total:</strong>
                 <strong className="text-accent">${isInternal ? '0.00' : final.toFixed(2)}</strong>
               </div>
+
+              {!isInternal && enteredPaymentAmount > 0 && (
+                <div className="flex justify-between" style={{ color: paymentDifference >= 0 ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
+                  <strong>{paymentDifference >= 0 ? 'Change Due:' : 'Outstanding Balance:'}</strong>
+                  <strong>${Math.abs(paymentDifference).toFixed(2)}</strong>
+                </div>
+              )}
 
               <button 
                 onClick={handleCheckout} 
@@ -724,6 +687,38 @@ export const POS: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {successSale && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 90,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            background: 'rgba(0, 0, 0, 0.65)'
+          }}
+        >
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '520px', textAlign: 'center' }}>
+            <CheckCircle size={56} style={{ color: 'var(--accent-success)', margin: '0 auto 1rem' }} />
+            <h2>Sale Completed Successfully</h2>
+            <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+              Invoice Code: <strong style={{ color: '#fff' }}>{successSale.invoiceId}</strong>
+            </p>
+            <div className="glass-card" style={{ textAlign: 'left', marginTop: '1.25rem' }}>
+              <div className="flex justify-between"><span>Customer</span><strong>{successSale.customerName || 'Walk-in Cash Customer'}</strong></div>
+              <div className="flex justify-between" style={{ marginTop: '0.65rem' }}><span>Payable Total</span><strong className="text-accent">${successSale.finalAmount.toFixed(2)}</strong></div>
+              <div className="flex justify-between" style={{ marginTop: '0.65rem' }}><span>Outstanding Balance</span><strong className={successSale.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>${successSale.outstandingBalance.toFixed(2)}</strong></div>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '1rem' }}>This message will close automatically.</p>
+            <button onClick={handleNewSale} className="btn btn-primary" style={{ marginTop: '1rem' }}>Start New POS Checkout</button>
+          </div>
+        </div>
+      )}
 
       {showAddCustomer && (
         <div

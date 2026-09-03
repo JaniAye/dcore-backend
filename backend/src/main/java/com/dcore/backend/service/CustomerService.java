@@ -79,7 +79,7 @@ public class CustomerService {
                 .totalAmount(sale.getTotalAmount())
                 .discountAmount(sale.getDiscountAmount())
                 .createdAt(sale.getCreatedAt())
-                .outstandingBalance(sale.getFinalAmount().subtract(totalPaid))
+                .outstandingBalance(sale.getFinalAmount().subtract(totalPaid).max(BigDecimal.ZERO))
                 .sellerName(sale.getSeller().getName())
                 .build();
     }
@@ -97,7 +97,7 @@ public class CustomerService {
                 .map(Payment::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal outstandingBalance = totalSalesAmt.subtract(totalPayments);
+        BigDecimal outstandingBalance = totalSalesAmt.subtract(totalPayments).max(BigDecimal.ZERO);
 
         return CustomerDto.builder()
                 .id(customer.getId())

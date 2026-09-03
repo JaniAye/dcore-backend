@@ -54,7 +54,8 @@ public class SaleService {
             throw new RuntimeException("Customer is required for pay later");
         }
 
-        boolean storeCredit = "CREDIT".equalsIgnoreCase(request.getPaymentMethod());
+        String paymentMethod = request.getPaymentMethod() != null ? request.getPaymentMethod() : "CASH";
+        boolean storeCredit = "CREDIT".equalsIgnoreCase(paymentMethod);
         if (storeCredit && customer == null && !Boolean.TRUE.equals(request.getIsInternal())) {
             throw new RuntimeException("A registered customer is required for store credit");
         }
@@ -97,8 +98,8 @@ public class SaleService {
                 // simple)
                 // For simplicity, we just store the totals in the SaleItem
                 // Pricing logic: use override price if provided, otherwise batch selling price
-                BigDecimal originalSellingPrice = batch.getSellingPrice();
-                BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null ? itemReq.getOverridePrice() : originalSellingPrice;
+                BigDecimal batchSellingPrice = batch.getSellingPrice();
+                BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null ? itemReq.getOverridePrice() : batchSellingPrice;
                 
                 if (Boolean.TRUE.equals(request.getIsInternal())) {
                     finalUnitPrice = BigDecimal.ZERO;
@@ -122,8 +123,8 @@ public class SaleService {
 
                 // Discount logic: any difference from original selling price is treated as a discount
                 BigDecimal batchDiscountAmount = BigDecimal.ZERO;
-                if (finalUnitPrice.compareTo(originalSellingPrice) < 0) {
-                    batchDiscountAmount = originalSellingPrice.subtract(finalUnitPrice).multiply(BigDecimal.valueOf(qtyFromBatch));
+                if (finalUnitPrice.compareTo(batchSellingPrice) < 0) {
+                    batchDiscountAmount = batchSellingPrice.subtract(finalUnitPrice).multiply(BigDecimal.valueOf(qtyFromBatch));
                 }
 
                 SaleItem saleItem = SaleItem.builder()
@@ -131,7 +132,7 @@ public class SaleService {
                         .product(product)
                         .batch(batch)
                         .quantity(qtyFromBatch)
-                        .unitPrice(originalSellingPrice) // Base price of the batch
+                        .unitPrice(finalUnitPrice)
                         .purchasePrice(landedCost)
                         .discountType("OVERRIDE")
                         .discountValue(BigDecimal.ZERO)
@@ -140,7 +141,7 @@ public class SaleService {
                         .build();
 
                 saleItems.add(saleItem);
-                totalAmountStr = totalAmountStr.add(originalSellingPrice.multiply(BigDecimal.valueOf(qtyFromBatch))); // Accumulate based on original selling price
+                totalAmountStr = totalAmountStr.add(finalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch)));
                 totalDiscountAmount = totalDiscountAmount.add(batchDiscountAmount);
                 remainingQtyToSell -= qtyFromBatch;
             }
@@ -162,15 +163,12 @@ public class SaleService {
             paymentAmount = sale.getFinalAmount();
         }
 
-        if (paymentAmount != null && paymentAmount.compareTo(sale.getFinalAmount()) > 0) {
-            throw new RuntimeException("Payment cannot exceed the sale total of " + sale.getFinalAmount());
-        }
-
         if (paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
+            paymentAmount = paymentAmount.min(sale.getFinalAmount());
             Payment payment = Payment.builder()
                     .sale(savedSale)
                     .amount(paymentAmount)
-                    .paymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : "CASH")
+                    .paymentMethod(paymentMethod)
                     .createdAt(LocalDateTime.now())
                     .build();
             paymentRepository.save(payment);
