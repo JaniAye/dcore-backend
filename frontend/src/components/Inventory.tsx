@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { ProductDto, Category, StockBatchDto, ExpenseItemDto } from '../types';
-import { Plus, FolderPlus, List, Tag, Layers, FileImage, DollarSign } from 'lucide-react';
+import { Plus, FolderPlus, List, Tag, Layers, FileImage, DollarSign, Search } from 'lucide-react';
 
 export const Inventory: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'products' | 'categories' | 'batches'>('products');
   
   // Data lists
   const [products, setProducts] = useState<ProductDto[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [stockFilter, setStockFilter] = useState<'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK'>('ALL');
   const [categories, setCategories] = useState<Category[]>([]);
   const [batches, setBatches] = useState<StockBatchDto[]>([]);
   
@@ -39,6 +41,14 @@ export const Inventory: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const filteredProducts = products.filter(product => {
+    const matchesName = product.name.toLowerCase().includes(productSearch.toLowerCase());
+    const matchesStock = stockFilter === 'ALL'
+      || (stockFilter === 'IN_STOCK' && product.totalStock > 0)
+      || (stockFilter === 'OUT_OF_STOCK' && product.totalStock === 0);
+    return matchesName && matchesStock;
+  });
 
   const loadAllData = async () => {
     try {
@@ -360,6 +370,32 @@ export const Inventory: React.FC = () => {
           {/* List panel */}
           <div className="glass-panel">
             <h3 style={{ marginBottom: '1rem' }}>Product Registry</h3>
+            <div className="form-row" style={{ marginBottom: '1rem' }}>
+              <div className="form-group" style={{ position: 'relative' }}>
+                <label className="form-label">Search by Product Name</label>
+                <Search size={16} style={{ position: 'absolute', left: '0.75rem', bottom: '0.7rem', color: 'var(--text-muted)' }} />
+                <input
+                  type="search"
+                  className="form-input"
+                  style={{ paddingLeft: '2.25rem' }}
+                  placeholder="Search product name..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Stock Status</label>
+                <select
+                  className="form-select"
+                  value={stockFilter}
+                  onChange={(e) => setStockFilter(e.target.value as typeof stockFilter)}
+                >
+                  <option value="ALL">All products</option>
+                  <option value="IN_STOCK">In stock</option>
+                  <option value="OUT_OF_STOCK">Out of stock</option>
+                </select>
+              </div>
+            </div>
             <div className="table-container">
               <table>
                 <thead>
@@ -373,7 +409,7 @@ export const Inventory: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {products.map(product => (
+                  {filteredProducts.map(product => (
                     <tr key={product.id}>
                       <td><code style={{ color: 'var(--accent-primary)', fontWeight: 700 }}>{product.itemCode}</code></td>
                       <td>
@@ -396,10 +432,12 @@ export const Inventory: React.FC = () => {
                       </td>
                     </tr>
                   ))}
-                  {products.length === 0 && (
+                  {filteredProducts.length === 0 && (
                     <tr>
                       <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
-                        No products registered. Use form on the left.
+                        {products.length === 0
+                          ? 'No products registered. Use form on the left.'
+                          : 'No products match the selected filters.'}
                       </td>
                     </tr>
                   )}
