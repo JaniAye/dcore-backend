@@ -224,8 +224,11 @@ export const POS: React.FC = () => {
       return;
     }
     
-    if (!isInternal && !customer && !paymentAmount) {
-      setError('Please search/select a customer, or enter a payment amount for immediate cash sale.');
+    if (!isInternal && paymentMethod === 'CREDIT' && !customer) {
+      setNewCustomerName(mobileQuery);
+      setNewCustomerMobile('');
+      setError('');
+      setShowAddCustomer(true);
       return;
     }
 
@@ -242,14 +245,16 @@ export const POS: React.FC = () => {
       }));
 
       const sale = await api.sales.create({
-        customerId: customer ? customer.id : 0,
+        customerId: customer?.id,
         items,
         discountLevel,
         discountReason: discountReason || undefined,
         isInternal,
         internalReason: isInternal ? internalReason : undefined,
-        paymentAmount: paymentAmount ? parseFloat(paymentAmount) : undefined,
-        paymentMethod: paymentAmount ? paymentMethod : undefined
+        paymentAmount: paymentMethod === 'CREDIT'
+          ? (paymentAmount ? parseFloat(paymentAmount) : undefined)
+          : (paymentAmount ? parseFloat(paymentAmount) : final),
+        paymentMethod: isInternal ? undefined : paymentMethod
       });
       setSuccessSale(sale);
     } catch (err: any) {
@@ -673,20 +678,6 @@ export const POS: React.FC = () => {
                     {showAddCustomer ? <X size={16} /> : <Plus size={16} />}
                   </button>
                 </div>
-                {showAddCustomer && (
-                  <form onSubmit={handleCreateCustomer} className="glass-card mt-4 flex-col gap-2">
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>REGISTER CUSTOMER</span>
-                    <div className="form-group">
-                      <input type="text" className="form-input" placeholder="Customer Name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} required />
-                    </div>
-                    <div className="form-group">
-                      <input type="text" className="form-input" placeholder="Mobile" value={newCustomerMobile} onChange={(e) => setNewCustomerMobile(e.target.value)} required />
-                    </div>
-                    <button type="submit" className="btn btn-primary w-full">
-                      <Plus size={16} /> Save Customer
-                    </button>
-                  </form>
-                )}
               </div>
             ) : (
               <div className="glass-card flex justify-between align-center">
@@ -733,6 +724,51 @@ export const POS: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {showAddCustomer && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Register customer"
+          onClick={() => setShowAddCustomer(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            background: 'rgba(0, 0, 0, 0.65)'
+          }}
+        >
+          <form
+            onSubmit={handleCreateCustomer}
+            onClick={(event) => event.stopPropagation()}
+            className="glass-panel flex-col gap-2"
+            style={{ width: '100%', maxWidth: '420px' }}
+          >
+            <div className="flex justify-between align-center">
+              <h3>Register Customer</h3>
+              <button type="button" className="btn btn-outline" onClick={() => setShowAddCustomer(false)} aria-label="Close customer registration">
+                <X size={16} />
+              </button>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>A registered customer is required for Store Credit.</p>
+            <div className="form-group">
+              <label className="form-label">Customer Name</label>
+              <input type="text" className="form-input" placeholder="Customer Name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} required autoFocus />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Mobile</label>
+              <input type="text" className="form-input" placeholder="Mobile" value={newCustomerMobile} onChange={(e) => setNewCustomerMobile(e.target.value)} required />
+            </div>
+            <button type="submit" className="btn btn-primary w-full">
+              <Plus size={16} /> Save Customer and Continue
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

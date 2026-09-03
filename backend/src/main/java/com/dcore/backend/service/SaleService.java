@@ -47,11 +47,16 @@ public class SaleService {
         }
 
         Customer customer = null;
-        if (request.getCustomerId() != null) {
+        if (request.getCustomerId() != null && request.getCustomerId() > 0) {
             customer = customerRepository.findById(request.getCustomerId())
                     .orElseThrow(() -> new RuntimeException("Customer not found"));
         } else if (Boolean.FALSE.equals(request.getIsInternal()) && (request.getPaymentAmount() == null)) {
             throw new RuntimeException("Customer is required for pay later");
+        }
+
+        boolean storeCredit = "CREDIT".equalsIgnoreCase(request.getPaymentMethod());
+        if (storeCredit && customer == null && !Boolean.TRUE.equals(request.getIsInternal())) {
+            throw new RuntimeException("A registered customer is required for store credit");
         }
 
         Sale sale = Sale.builder()
@@ -152,11 +157,20 @@ public class SaleService {
 
         Sale savedSale = saleRepository.save(sale);
 
-        if (request.getPaymentAmount() != null && request.getPaymentAmount().compareTo(BigDecimal.ZERO) > 0) {
+        BigDecimal paymentAmount = request.getPaymentAmount();
+        if (!storeCredit && paymentAmount == null && !Boolean.TRUE.equals(request.getIsInternal())) {
+            paymentAmount = sale.getFinalAmount();
+        }
+
+        if (paymentAmount != null && paymentAmount.compareTo(sale.getFinalAmount()) > 0) {
+            throw new RuntimeException("Payment cannot exceed the sale total of " + sale.getFinalAmount());
+        }
+
+        if (paymentAmount != null && paymentAmount.compareTo(BigDecimal.ZERO) > 0) {
             Payment payment = Payment.builder()
                     .sale(savedSale)
-                    .amount(request.getPaymentAmount())
-                    .paymentMethod(request.getPaymentMethod())
+                    .amount(paymentAmount)
+                    .paymentMethod(request.getPaymentMethod() != null ? request.getPaymentMethod() : "CASH")
                     .createdAt(LocalDateTime.now())
                     .build();
             paymentRepository.save(payment);
@@ -194,6 +208,19 @@ public class SaleService {
     public PaymentDto addPayment(PaymentRequest request) {
         Sale sale = saleRepository.findById(request.getSaleId())
                 .orElseThrow(() -> new RuntimeException("Sale not found"));
+
+        if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Payment amount must be greater than zero");
+        }
+
+        BigDecimal totalPaid = paymentRepository.findAll().stream()
+                .filter(payment -> payment.getSale().getId().equals(sale.getId()))
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal outstanding = sale.getFinalAmount().subtract(totalPaid);
+        if (request.getAmount().compareTo(outstanding) > 0) {
+            throw new RuntimeException("Payment cannot exceed the outstanding balance of " + outstanding);
+        }
 
         Payment payment = Payment.builder()
                 .sale(sale)

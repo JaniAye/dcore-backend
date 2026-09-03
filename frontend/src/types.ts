@@ -101,7 +101,7 @@ export interface SaleItemRequest {
 }
 
 export interface SaleRequest {
-  customerId: number;
+  customerId?: number;
   items: SaleItemRequest[];
   discountLevel: DiscountLevel;
   customDiscountAmount?: number;

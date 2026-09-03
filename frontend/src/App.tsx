@@ -8,6 +8,7 @@ import { InventoryStockFilter } from './components/Inventory';
 import { DeliveryOrders } from './components/DeliveryOrders';
 import { Expenses } from './components/Expenses';
 import { Invoices } from './components/Invoices';
+import { Customers } from './components/Customers';
 import { Role } from './types';
 
 interface UserSession {
@@ -73,6 +74,7 @@ export const App: React.FC = () => {
         {currentTab === 'inventory' && <Inventory stockFilter={inventoryStockFilter} />}
         {currentTab === 'delivery' && <DeliveryOrders />}
         {currentTab === 'invoices' && <Invoices />}
+        {currentTab === 'customers' && <Customers />}
         {currentTab === 'expenses' && <Expenses monthFilter={expenseMonthFilter} />}
       </main>
     </div>
