@@ -8,6 +8,7 @@ export const POS: React.FC = () => {
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [batches, setBatches] = useState<StockBatchDto[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showItemSuggestions, setShowItemSuggestions] = useState(false);
   
   // Cart state
   interface CartItem {
@@ -341,88 +342,85 @@ export const POS: React.FC = () => {
       <div className="layout-split-pos">
         {/* Main area: Cart and Checkout controls */}
         <div className="flex-col gap-4">
-          {/* Customer section */}
-          <div className="glass-panel" style={{ padding: '1.5rem' }}>
-            <h3 style={{ marginBottom: '1rem' }}>Customer Assignment</h3>
-            {!customer ? (
-              <div className="flex-col gap-2">
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    className="form-input w-full" 
-                    placeholder="Search name or mobile..." 
-                    value={mobileQuery}
-                    onChange={(e) => setMobileQuery(e.target.value)}
-                  />
-                  <button onClick={handleCustomerSearch} className="btn btn-secondary">
-                    <Search size={18} />
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (showAddCustomer) {
-                        setShowAddCustomer(false);
-                        setNewCustomerName('');
-                        setNewCustomerMobile('');
-                      } else {
-                        setNewCustomerName(mobileQuery);
-                        setShowAddCustomer(true);
-                      }
-                    }}
-                    className={`btn ${showAddCustomer ? 'btn-secondary' : 'btn-outline'}`}
-                    type="button"
-                    aria-label={showAddCustomer ? 'Close customer form' : 'Add customer'}
-                  >
-                    {showAddCustomer ? <X size={16} /> : <Plus size={16} />}
-                  </button>
-                </div>
-                {showAddCustomer && (
-                  <form onSubmit={handleCreateCustomer} className="glass-card mt-4 flex-col gap-2">
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>REGISTER CUSTOMER</span>
-                    <div className="form-group">
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Customer Name"
-                        value={newCustomerName}
-                        onChange={(e) => setNewCustomerName(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="form-group">
-                      <input 
-                        type="text" 
-                        className="form-input" 
-                        placeholder="Mobile"
-                        value={newCustomerMobile}
-                        onChange={(e) => setNewCustomerMobile(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <button type="submit" className="btn btn-primary w-full">
-                      <Plus size={16} /> Save Customer
+          <div className="glass-panel" style={{ padding: '1.5rem', position: 'relative', zIndex: 2 }}>
+            <label className="form-label">Search Items</label>
+            <div style={{ position: 'relative' }}>
+              <Search size={18} style={{
+                position: 'absolute',
+                left: '1rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-muted)'
+              }} />
+              <input
+                type="text"
+                className="form-input w-full"
+                style={{ paddingLeft: '2.75rem' }}
+                placeholder="Search products by code or name..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setShowItemSuggestions(true);
+                }}
+                onFocus={() => setShowItemSuggestions(true)}
+              />
+              {showItemSuggestions && searchTerm.trim() && filteredProducts.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  zIndex: 20,
+                  marginTop: '0.25rem',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-glass)',
+                  borderRadius: 'var(--radius-md)',
+                  boxShadow: 'var(--shadow-md)',
+                  maxHeight: '280px',
+                  overflowY: 'auto'
+                }}>
+                  {filteredProducts.map(product => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => {
+                        addToCart(product);
+                        setSearchTerm('');
+                        setShowItemSuggestions(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.65rem',
+                        width: '100%',
+                        padding: '0.5rem 0.65rem',
+                        border: 'none',
+                        borderBottom: '1px solid var(--border-glass)',
+                        background: 'transparent',
+                        color: 'var(--text-primary)',
+                        textAlign: 'left',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {product.imageUrl ? (
+                        <img src={product.imageUrl} alt="" style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{ width: '28px', height: '28px', borderRadius: 'var(--radius-sm)', background: 'var(--bg-tertiary)', flexShrink: 0 }} />
+                      )}
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</strong>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{product.itemCode} | Stock: {product.totalStock}</span>
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: 700 }}>${product.standardPrice.toFixed(2)}</span>
                     </button>
-                  </form>
-                )}
-              </div>
-            ) : (
-              <div className="glass-card flex justify-between align-center">
-                <div>
-                  <h4 style={{ fontWeight: 700 }}>{customer.name}</h4>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Mob: {customer.mobile}</span>
+                  ))}
                 </div>
-                <div className="text-right">
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Outstanding Balance</span>
-                  <div style={{ color: 'var(--accent-warning)', fontWeight: 700 }}>${customer.outstandingBalance.toFixed(2)}</div>
-                  <button onClick={() => setCustomer(null)} className="pointer" style={{
-                    background: 'none', border: 'none', color: 'var(--accent-danger)', fontSize: '0.75rem', marginTop: '0.25rem'
-                  }}>Clear Selection</button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Cart items */}
-          <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', zIndex: 1 }}>
             <div className="flex justify-between align-center">
               <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <ShoppingCart size={18} />
@@ -642,22 +640,67 @@ export const POS: React.FC = () => {
 
         {/* Secondary area: Product selector grid */}
         <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div style={{ position: 'relative' }}>
-            <Search size={18} style={{
-              position: 'absolute',
-              left: '1rem',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: 'var(--text-muted)'
-            }} />
-            <input 
-              type="text" 
-              className="form-input w-full" 
-              style={{ paddingLeft: '2.75rem' }} 
-              placeholder="Search products by code or name..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="glass-panel" style={{ padding: '1.5rem' }}>
+            <h3 style={{ marginBottom: '1rem' }}>Customer Assignment</h3>
+            {!customer ? (
+              <div className="flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="form-input w-full"
+                    placeholder="Search name or mobile..."
+                    value={mobileQuery}
+                    onChange={(e) => setMobileQuery(e.target.value)}
+                  />
+                  <button onClick={handleCustomerSearch} className="btn btn-secondary" type="button">
+                    <Search size={18} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (showAddCustomer) {
+                        setShowAddCustomer(false);
+                        setNewCustomerName('');
+                        setNewCustomerMobile('');
+                      } else {
+                        setNewCustomerName(mobileQuery);
+                        setShowAddCustomer(true);
+                      }
+                    }}
+                    className={`btn ${showAddCustomer ? 'btn-secondary' : 'btn-outline'}`}
+                    type="button"
+                    aria-label={showAddCustomer ? 'Close customer form' : 'Add customer'}
+                  >
+                    {showAddCustomer ? <X size={16} /> : <Plus size={16} />}
+                  </button>
+                </div>
+                {showAddCustomer && (
+                  <form onSubmit={handleCreateCustomer} className="glass-card mt-4 flex-col gap-2">
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>REGISTER CUSTOMER</span>
+                    <div className="form-group">
+                      <input type="text" className="form-input" placeholder="Customer Name" value={newCustomerName} onChange={(e) => setNewCustomerName(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                      <input type="text" className="form-input" placeholder="Mobile" value={newCustomerMobile} onChange={(e) => setNewCustomerMobile(e.target.value)} required />
+                    </div>
+                    <button type="submit" className="btn btn-primary w-full">
+                      <Plus size={16} /> Save Customer
+                    </button>
+                  </form>
+                )}
+              </div>
+            ) : (
+              <div className="glass-card flex justify-between align-center">
+                <div>
+                  <h4 style={{ fontWeight: 700 }}>{customer.name}</h4>
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Mob: {customer.mobile}</span>
+                </div>
+                <div className="text-right">
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Outstanding Balance</span>
+                  <div style={{ color: 'var(--accent-warning)', fontWeight: 700 }}>${customer.outstandingBalance.toFixed(2)}</div>
+                  <button onClick={() => setCustomer(null)} className="pointer" style={{ background: 'none', border: 'none', color: 'var(--accent-danger)', fontSize: '0.75rem', marginTop: '0.25rem' }}>Clear Selection</button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="pos-products-grid">
