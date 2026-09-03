@@ -196,6 +196,8 @@ export interface MiscExpenseDto {
   id?: number;
   description: string;
   amount: number;
+  expenseDate?: string;
+  category: string;
   createdAt?: string;
 }
 

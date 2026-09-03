@@ -7,10 +7,21 @@ export const Expenses: React.FC = () => {
   const [expenses, setExpenses] = useState<MiscExpenseDto[]>([]);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const expenseCategories = ['Facebook Bill', 'Packaging', 'Rentals'];
+  const [filterDate, setFilterDate] = useState('');
+  const [filterDescription, setFilterDescription] = useState('');
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const filteredExpenses = expenses.filter(expense => {
+    const matchesDate = !filterDate || expense.expenseDate === filterDate;
+    const matchesDescription = !filterDescription
+      || expense.category === filterDescription
+      || expense.description.toLowerCase().includes(filterDescription.toLowerCase());
+    return matchesDate && matchesDescription;
+  });
 
   const loadExpenses = async () => {
     try {
@@ -35,14 +46,16 @@ export const Expenses: React.FC = () => {
     try {
       await api.miscExpenses.create({
         description,
-        amount: parseFloat(amount)
+        amount: parseFloat(amount),
+        expenseDate: new Date().toISOString().split('T')[0],
+        category: expenseCategories.includes(description) ? description : 'Other'
       });
       setSuccess('Expense logged successfully!');
       setDescription('');
       setAmount('');
       loadExpenses();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to log expense');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to log expense');
     } finally {
       setLoading(false);
     }
@@ -66,7 +79,7 @@ export const Expenses: React.FC = () => {
   return (
     <div className="flex-col gap-4">
       <div className="page-header">
-        <h1>Miscellaneous Expenses</h1>
+        <h1>Operating Expenses</h1>
         <p className="page-subtitle">Record operational costs and general overheads outside stock purchase costs</p>
       </div>
 
@@ -110,10 +123,16 @@ export const Expenses: React.FC = () => {
                 type="text" 
                 className="form-input" 
                 placeholder="e.g. Office Rent / Electric Bill" 
+                list="expense-description-options"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 required
               />
+              <datalist id="expense-description-options">
+                {expenseCategories.map(expenseCategory => (
+                  <option key={expenseCategory} value={expenseCategory} />
+                ))}
+              </datalist>
             </div>
             <div className="form-group">
               <label className="form-label">Expense Value ($)</label>
@@ -136,6 +155,31 @@ export const Expenses: React.FC = () => {
         {/* Expenses List */}
         <div className="glass-panel">
           <h3 style={{ marginBottom: '1rem' }}>Operating Expenses Ledger</h3>
+          <div className="form-row" style={{ marginBottom: '1rem' }}>
+            <div className="form-group">
+              <label className="form-label">Filter by Log Date</label>
+              <input
+                type="date"
+                className="form-input"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Filter by Description</label>
+              <select
+                className="form-select"
+                value={filterDescription}
+                onChange={(e) => setFilterDescription(e.target.value)}
+              >
+                <option value="">All descriptions</option>
+                {expenseCategories.map(expenseCategory => (
+                  <option key={expenseCategory} value={expenseCategory}>{expenseCategory}</option>
+                ))}
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
           <div className="table-container">
             <table>
               <thead>
@@ -147,12 +191,17 @@ export const Expenses: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {expenses.map(expense => (
+                {filteredExpenses.map(expense => (
                   <tr key={expense.id}>
                     <td>
-                      {expense.createdAt ? new Date(expense.createdAt).toLocaleDateString() : 'N/A'}
+                      {expense.expenseDate
+                        ? new Date(`${expense.expenseDate}T00:00:00`).toLocaleDateString()
+                        : 'N/A'}
                     </td>
-                    <td><strong>{expense.description}</strong></td>
+                    <td>
+                      <strong>{expense.description}</strong>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{expense.category}</p>
+                    </td>
                     <td className="text-danger" style={{ fontWeight: 700 }}>-${expense.amount.toFixed(2)}</td>
                     <td>
                       {expense.id && (
@@ -167,10 +216,12 @@ export const Expenses: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {expenses.length === 0 && (
+                {filteredExpenses.length === 0 && (
                   <tr>
                     <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
-                      No miscellaneous expenses recorded. Log one on the left.
+                      {expenses.length === 0
+                        ? 'No operating expenses recorded. Log one on the left.'
+                        : 'No expenses match the selected filters.'}
                     </td>
                   </tr>
                 )}

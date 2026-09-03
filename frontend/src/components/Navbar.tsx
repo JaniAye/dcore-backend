@@ -80,7 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, user 
           className={`nav-link ${currentTab === 'expenses' ? 'active' : ''}`}
         >
           <Receipt className="nav-icon" />
-          <span>Misc Expenses</span>
+            <span>Operating Expenses</span>
         </button>
       </nav>
 
