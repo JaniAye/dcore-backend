@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { DeliveryOrderDto, ProfitBreakdownDto } from '../types';
+import { DeliveryOrderDto, ProductDto, ProfitBreakdownDto } from '../types';
+import { InventoryStockFilter } from './Inventory';
 import { 
   TrendingUp, 
   DollarSign, 
@@ -14,12 +15,14 @@ import {
 
 interface DashboardProps {
   onOpenDeliveryOrders: () => void;
+  onOpenInventory: (filter: InventoryStockFilter) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOpenInventory }) => {
   const [dailySales, setDailySales] = useState<number>(0);
   const [monthlyReport, setMonthlyReport] = useState<ProfitBreakdownDto | null>(null);
   const [productCount, setProductCount] = useState<number>(0);
+  const [products, setProducts] = useState<ProductDto[]>([]);
   const [customerCount, setCustomerCount] = useState<number>(0);
   const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrderDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +56,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders }) =>
       // 3. Products
       const products = await api.products.getAll();
       setProductCount(products.length);
+      setProducts(products);
 
       // 4. Customers
       const customers = await api.customers.getAll();
@@ -74,6 +78,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders }) =>
   }, [date, yearMonth]);
 
   const pendingDeliveryCount = deliveryOrders.filter(order => order.status === 'PENDING').length;
+  const activeProductCount = products.filter(product => product.totalStock > 0).length;
+  const stockOutProductCount = products.filter(product => product.totalStock === 0).length;
+  const almostOutProductCount = products.filter(product => product.totalStock > 0 && product.totalStock < 5).length;
   const shippedDeliveryCount = deliveryOrders.filter(order => order.status === 'READY').length;
   const monthlyDeliveryCount = deliveryOrders.filter(order => order.orderDate.startsWith(yearMonth)).length;
   const shippedDeliveryIncome = deliveryOrders
@@ -154,14 +161,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders }) =>
           </div>
         </div>
 
-        <div className="glass-panel stat-card">
-          <span className="stat-title">Total Active Products</span>
-          <div className="stat-value">{productCount}</div>
+        <button type="button" className="glass-panel stat-card" onClick={() => onOpenInventory('IN_STOCK')} style={{ textAlign: 'left', color: 'inherit', cursor: 'pointer' }}>
+          <span className="stat-title">Active Products</span>
+          <div className="stat-value">{activeProductCount}</div>
           <div className="stat-trend trend-up">
             <Package size={14} />
-            <span>Items registered</span>
+            <span>Products currently in stock</span>
           </div>
-        </div>
+        </button>
+
+        <button type="button" className="glass-panel stat-card" onClick={() => onOpenInventory('OUT_OF_STOCK')} style={{ textAlign: 'left', color: 'inherit', cursor: 'pointer' }}>
+          <span className="stat-title">Out-of-Stock Products</span>
+          <div className="stat-value text-danger">{stockOutProductCount}</div>
+          <div className="stat-trend trend-down">
+            <Package size={14} />
+            <span>Products with zero stock</span>
+          </div>
+        </button>
+
+        <button type="button" className="glass-panel stat-card" onClick={() => onOpenInventory('ALMOST_OUT')} style={{ textAlign: 'left', color: 'inherit', cursor: 'pointer' }}>
+          <span className="stat-title">Almost Out Products</span>
+          <div className="stat-value" style={{ color: 'var(--accent-warning)' }}>{almostOutProductCount}</div>
+          <div className="stat-trend">
+            <Package size={14} />
+            <span>Less than 5 units remaining</span>
+          </div>
+        </button>
 
         {/* <div className="glass-panel stat-card">
           <span className="stat-title">Registered Customers</span>

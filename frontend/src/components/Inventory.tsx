@@ -3,13 +3,19 @@ import { api } from '../services/api';
 import { ProductDto, Category, StockBatchDto, ExpenseItemDto } from '../types';
 import { Plus, FolderPlus, List, Tag, Layers, FileImage, DollarSign, Search } from 'lucide-react';
 
-export const Inventory: React.FC = () => {
+export type InventoryStockFilter = 'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK' | 'ALMOST_OUT';
+
+interface InventoryProps {
+  stockFilter?: InventoryStockFilter;
+}
+
+export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStockFilter }) => {
   const [activeSubTab, setActiveSubTab] = useState<'products' | 'categories' | 'batches'>('products');
   
   // Data lists
   const [products, setProducts] = useState<ProductDto[]>([]);
   const [productSearch, setProductSearch] = useState('');
-  const [stockFilter, setStockFilter] = useState<'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK'>('ALL');
+  const [stockFilter, setStockFilter] = useState<InventoryStockFilter>(requestedStockFilter || 'ALL');
   const [categories, setCategories] = useState<Category[]>([]);
   const [batches, setBatches] = useState<StockBatchDto[]>([]);
   
@@ -46,7 +52,8 @@ export const Inventory: React.FC = () => {
     const matchesName = product.name.toLowerCase().includes(productSearch.toLowerCase());
     const matchesStock = stockFilter === 'ALL'
       || (stockFilter === 'IN_STOCK' && product.totalStock > 0)
-      || (stockFilter === 'OUT_OF_STOCK' && product.totalStock === 0);
+      || (stockFilter === 'OUT_OF_STOCK' && product.totalStock === 0)
+      || (stockFilter === 'ALMOST_OUT' && product.totalStock > 0 && product.totalStock < 5);
     return matchesName && matchesStock;
   });
 
@@ -66,6 +73,13 @@ export const Inventory: React.FC = () => {
   useEffect(() => {
     loadAllData();
   }, []);
+
+  useEffect(() => {
+    if (requestedStockFilter) {
+      setActiveSubTab('products');
+      setStockFilter(requestedStockFilter);
+    }
+  }, [requestedStockFilter]);
 
   // Product Creation
   const handleCreateProduct = async (e: React.FormEvent) => {
@@ -393,6 +407,7 @@ export const Inventory: React.FC = () => {
                   <option value="ALL">All products</option>
                   <option value="IN_STOCK">In stock</option>
                   <option value="OUT_OF_STOCK">Out of stock</option>
+                  <option value="ALMOST_OUT">Almost out (less than 5)</option>
                 </select>
               </div>
             </div>

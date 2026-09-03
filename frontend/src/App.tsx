@@ -4,6 +4,7 @@ import { Login } from './components/Login';
 import { Dashboard } from './components/Dashboard';
 import { POS } from './components/POS';
 import { Inventory } from './components/Inventory';
+import { InventoryStockFilter } from './components/Inventory';
 import { DeliveryOrders } from './components/DeliveryOrders';
 import { Expenses } from './components/Expenses';
 import { Invoices } from './components/Invoices';
@@ -19,6 +20,7 @@ export const App: React.FC = () => {
   const [user, setUser] = useState<UserSession | null>(null);
   const [currentTab, setCurrentTab] = useState<string>('pos');
   const [token, setToken] = useState<string | null>(null);
+  const [inventoryStockFilter, setInventoryStockFilter] = useState<InventoryStockFilter>('ALL');
 
   const syncAuthState = () => {
     const t = localStorage.getItem('dcore_token');
@@ -53,9 +55,17 @@ export const App: React.FC = () => {
     <div className="app-container">
       <Navbar currentTab={currentTab} setCurrentTab={setCurrentTab} user={user} />
       <main className="main-content">
-        {currentTab === 'dashboard' && user.role === 'SUPER_ADMIN' && <Dashboard onOpenDeliveryOrders={() => setCurrentTab('delivery')} />}
+        {currentTab === 'dashboard' && user.role === 'SUPER_ADMIN' && (
+          <Dashboard
+            onOpenDeliveryOrders={() => setCurrentTab('delivery')}
+            onOpenInventory={(filter) => {
+              setInventoryStockFilter(filter);
+              setCurrentTab('inventory');
+            }}
+          />
+        )}
         {currentTab === 'pos' && <POS />}
-        {currentTab === 'inventory' && <Inventory />}
+        {currentTab === 'inventory' && <Inventory stockFilter={inventoryStockFilter} />}
         {currentTab === 'delivery' && <DeliveryOrders />}
         {currentTab === 'invoices' && <Invoices />}
         {currentTab === 'expenses' && <Expenses />}
