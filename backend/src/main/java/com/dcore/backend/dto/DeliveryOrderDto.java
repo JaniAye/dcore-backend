@@ -28,5 +28,6 @@ public class DeliveryOrderDto {
         private String productName;
         private Integer quantity;
         private BigDecimal purchasePrice;
+        private BigDecimal sellingPrice;
     }
 }

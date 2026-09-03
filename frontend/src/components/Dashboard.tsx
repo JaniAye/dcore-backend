@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { ProfitBreakdownDto } from '../types';
+import { DeliveryOrderDto, ProfitBreakdownDto } from '../types';
 import { 
   TrendingUp, 
   DollarSign, 
@@ -8,14 +8,20 @@ import {
   Package, 
   ArrowUpRight, 
   TrendingDown, 
-  Calendar 
+  Calendar,
+  Truck
 } from 'lucide-react';
 
-export const Dashboard: React.FC = () => {
+interface DashboardProps {
+  onOpenDeliveryOrders: () => void;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders }) => {
   const [dailySales, setDailySales] = useState<number>(0);
   const [monthlyReport, setMonthlyReport] = useState<ProfitBreakdownDto | null>(null);
   const [productCount, setProductCount] = useState<number>(0);
   const [customerCount, setCustomerCount] = useState<number>(0);
+  const [deliveryOrders, setDeliveryOrders] = useState<DeliveryOrderDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -51,6 +57,10 @@ export const Dashboard: React.FC = () => {
       // 4. Customers
       const customers = await api.customers.getAll();
       setCustomerCount(customers.length);
+
+      // Delivery metrics are derived from the same order data used by Delivery Management.
+      const orders = await api.deliveryOrders.getAll();
+      setDeliveryOrders(orders);
     } catch (err: any) {
       console.error(err);
       setError('Failed to fetch dashboard reports. Ensure your session has Super Admin privileges.');
@@ -62,6 +72,15 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchDashboardData();
   }, [date, yearMonth]);
+
+  const pendingDeliveryCount = deliveryOrders.filter(order => order.status === 'PENDING').length;
+  const shippedDeliveryCount = deliveryOrders.filter(order => order.status === 'READY').length;
+  const monthlyDeliveryCount = deliveryOrders.filter(order => order.orderDate.startsWith(yearMonth)).length;
+  const shippedDeliveryIncome = deliveryOrders
+    .filter(order => order.status === 'READY')
+    .reduce((total, order) => total + order.items.reduce((orderTotal, item) => (
+      orderTotal + (item.sellingPrice || 0) * item.quantity
+    ), 0), 0);
 
   if (loading && !monthlyReport) {
     return <div className="text-center mt-4">Loading dashboard insights...</div>;
@@ -144,12 +163,48 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="glass-panel stat-card">
+        {/* <div className="glass-panel stat-card">
           <span className="stat-title">Registered Customers</span>
           <div className="stat-value">{customerCount}</div>
           <div className="stat-trend trend-up">
             <Users size={14} />
             <span>Active accounts</span>
+          </div>
+        </div> */}
+
+        <button type="button" className="glass-panel stat-card" onClick={onOpenDeliveryOrders} style={{ textAlign: 'left', color: 'inherit', cursor: 'pointer' }}>
+          <span className="stat-title">Pending Deliveries</span>
+          <div className="stat-value text-accent">{pendingDeliveryCount}</div>
+          <div className="stat-trend trend-up">
+            <Truck size={14} />
+            <span>Open delivery inspection</span>
+          </div>
+        </button>
+
+        <div className="glass-panel stat-card">
+          <span className="stat-title">Shipped Deliveries</span>
+          <div className="stat-value text-success">{shippedDeliveryCount}</div>
+          <div className="stat-trend trend-up">
+            <Truck size={14} />
+            <span>Ready orders</span>
+          </div>
+        </div>
+
+        <div className="glass-panel stat-card">
+          <span className="stat-title">Shipped Item Income</span>
+          <div className="stat-value text-success">${shippedDeliveryIncome.toFixed(2)}</div>
+          <div className="stat-trend trend-up">
+            <DollarSign size={14} />
+            <span>Items only, fees excluded</span>
+          </div>
+        </div>
+
+        <div className="glass-panel stat-card">
+          <span className="stat-title">Monthly Delivery Orders</span>
+          <div className="stat-value">{monthlyDeliveryCount}</div>
+          <div className="stat-trend">
+            <Calendar size={14} />
+            <span>For {yearMonth}</span>
           </div>
         </div>
       </div>

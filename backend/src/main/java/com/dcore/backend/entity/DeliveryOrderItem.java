@@ -32,4 +32,6 @@ public class DeliveryOrderItem {
 
     @Column(nullable = false)
     private BigDecimal purchasePrice; // Cost per unit at time of order
+
+    private BigDecimal sellingPrice; // Selling price per unit at time of order
 }

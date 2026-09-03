@@ -504,7 +504,7 @@ export const DeliveryOrders: React.FC = () => {
                     </td>
                     <td>
                       <div className="flex gap-2">
-                        {order.status === 'PENDING' && (
+                        {(order.status === 'PENDING' || order.status === 'READY') && (
                           <>
                             <button 
                               onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
@@ -522,7 +522,7 @@ export const DeliveryOrders: React.FC = () => {
                             </button>
                           </>
                         )}
-                        {order.status !== 'PENDING' && (
+                        {order.status !== 'PENDING' && order.status !== 'READY' && (
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Locked</span>
                         )}
                       </div>

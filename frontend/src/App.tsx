@@ -53,7 +53,7 @@ export const App: React.FC = () => {
     <div className="app-container">
       <Navbar currentTab={currentTab} setCurrentTab={setCurrentTab} user={user} />
       <main className="main-content">
-        {currentTab === 'dashboard' && user.role === 'SUPER_ADMIN' && <Dashboard />}
+        {currentTab === 'dashboard' && user.role === 'SUPER_ADMIN' && <Dashboard onOpenDeliveryOrders={() => setCurrentTab('delivery')} />}
         {currentTab === 'pos' && <POS />}
         {currentTab === 'inventory' && <Inventory />}
         {currentTab === 'delivery' && <DeliveryOrders />}

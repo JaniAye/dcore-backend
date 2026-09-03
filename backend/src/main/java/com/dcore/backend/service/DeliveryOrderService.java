@@ -74,6 +74,7 @@ public class DeliveryOrderService {
                         .batch(batch)
                         .quantity(deduct)
                         .purchasePrice(landedCost)
+                        .sellingPrice(product.getStandardPrice())
                         .build();
                 
                 orderItems.add(deliveryOrderItemRepository.save(orderItem));
@@ -160,6 +161,9 @@ public class DeliveryOrderService {
                         .productName(item.getProduct().getName())
                         .quantity(item.getQuantity())
                         .purchasePrice(item.getPurchasePrice())
+                        .sellingPrice(item.getSellingPrice() != null
+                            ? item.getSellingPrice()
+                            : item.getProduct().getStandardPrice())
                         .build()
                 ).collect(Collectors.toList()))
                 .build();

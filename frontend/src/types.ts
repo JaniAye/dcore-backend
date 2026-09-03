@@ -175,6 +175,7 @@ export interface DeliveryOrderItemDto {
   productName: string;
   quantity: number;
   purchasePrice: number;
+  sellingPrice?: number;
 }
 
 export interface DeliveryOrderDto {
