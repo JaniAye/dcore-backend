@@ -45,7 +45,7 @@ public class DeliveryOrder {
     private List<DeliveryOrderItem> items;
 
     public enum OrderStatus {
-        PENDING, DELIVERED, RETURNED
+        PENDING, READY, DELIVERED, RETURNED
     }
 
     public enum PaymentMethod {

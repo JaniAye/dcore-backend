@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { DeliveryOrderDto, ProductDto, OrderStatus, DeliveryPaymentMethod } from '../types';
-import { Check, RotateCcw, Truck, ShieldCheck, List, AlertTriangle } from 'lucide-react';
+import { Check, RotateCcw, Truck, ShieldCheck, List, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const DeliveryOrders: React.FC = () => {
   const [orders, setOrders] = useState<DeliveryOrderDto[]>([]);
@@ -25,10 +25,14 @@ export const DeliveryOrders: React.FC = () => {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [pendingOrderIndex, setPendingOrderIndex] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const pendingOrders = orders.filter(order => order.status === 'PENDING');
+  const pendingOrder = pendingOrders[pendingOrderIndex];
 
   const loadData = async () => {
     try {
@@ -166,9 +170,12 @@ export const DeliveryOrders: React.FC = () => {
     try {
       await api.deliveryOrders.updateStatus(orderId, status);
       setSuccess(`Order #${orderId} status updated to ${status}`);
+      if (status === 'READY') {
+        setPendingOrderIndex(index => Math.min(index, Math.max(0, pendingOrders.length - 2)));
+      }
       loadData();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update order status');
+      setError(err.response?.data?.error || err.response?.data?.message || 'Failed to update order status');
     } finally {
       setLoading(false);
     }
@@ -385,6 +392,79 @@ export const DeliveryOrders: React.FC = () => {
           </form>
         </div>
       ) : (
+        <>
+          <div className="glass-panel">
+            <div className="flex justify-between align-center" style={{ marginBottom: '1rem' }}>
+              <div>
+                <h2>Pending Order Inspection</h2>
+                <p className="page-subtitle">Review each pending delivery before preparing it.</p>
+              </div>
+              {pendingOrder && (
+                <span className="badge badge-warning">{pendingOrderIndex + 1} of {pendingOrders.length}</span>
+              )}
+            </div>
+
+            {pendingOrder ? (
+              <div className="glass-card" style={{ padding: '1.25rem' }}>
+                <div className="flex justify-between align-center" style={{ marginBottom: '1rem' }}>
+                  <div>
+                    <span className="form-label">DELIVERY ORDER</span>
+                    <h3 style={{ marginTop: '0.25rem' }}>Order #{pendingOrder.id}</h3>
+                  </div>
+                  <span className="badge badge-warning">PENDING</span>
+                </div>
+
+                <div className="form-row" style={{ marginBottom: '1rem' }}>
+                  <div>
+                    <span className="form-label">Delivery Details</span>
+                    <p style={{ whiteSpace: 'pre-wrap', marginTop: '0.35rem' }}>{pendingOrder.deliveryDetails || 'No delivery details'}</p>
+                  </div>
+                  <div>
+                    <span className="form-label">Order Date</span>
+                    <p style={{ marginTop: '0.35rem' }}>{new Date(pendingOrder.orderDate).toLocaleString()}</p>
+                  </div>
+                </div>
+
+                <div className="form-row" style={{ marginBottom: '1rem' }}>
+                  <div>
+                    <span className="form-label">COD Amount</span>
+                    <p style={{ marginTop: '0.35rem', fontSize: '1.1rem', fontWeight: 600 }}>${pendingOrder.codAmount.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <span className="form-label">Delivery Fee</span>
+                    <p style={{ marginTop: '0.35rem', fontSize: '1.1rem', fontWeight: 600 }}>${pendingOrder.deliveryFee.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '1rem' }}>
+                  <span className="form-label">Items and Quantities</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    {pendingOrder.items.map(item => (
+                      <div key={`${pendingOrder.id}-${item.productId}`} className="flex justify-between align-center" style={{ padding: '0.65rem 0.75rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
+                        <span>{item.productName}</span>
+                        <strong>Qty: {item.quantity}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-between align-center" style={{ marginTop: '1.25rem', gap: '0.75rem' }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setPendingOrderIndex(index => Math.max(0, index - 1))} disabled={pendingOrderIndex === 0}>
+                    <ChevronLeft size={16} /> Previous
+                  </button>
+                  <button type="button" className="btn btn-success" onClick={() => handleUpdateStatus(pendingOrder.id, 'READY')} disabled={loading}>
+                    <Check size={16} /> Mark Ready
+                  </button>
+                  <button type="button" className="btn btn-outline" onClick={() => setPendingOrderIndex(index => Math.min(pendingOrders.length - 1, index + 1))} disabled={pendingOrderIndex === pendingOrders.length - 1}>
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p style={{ color: 'var(--text-muted)' }}>No pending delivery orders to inspect.</p>
+            )}
+          </div>
+
         <div className="glass-panel">
           <h2 style={{ marginBottom: '1rem' }}>Active Shipments Log</h2>
           <div className="table-container">
@@ -417,7 +497,7 @@ export const DeliveryOrders: React.FC = () => {
                     <td>
                       <span className={`badge ${
                         order.status === 'PENDING' ? 'badge-warning' : 
-                        order.status === 'DELIVERED' ? 'badge-success' : 'badge-danger'
+                        order.status === 'READY' || order.status === 'DELIVERED' ? 'badge-success' : 'badge-danger'
                       }`}>
                         {order.status}
                       </span>
@@ -460,6 +540,7 @@ export const DeliveryOrders: React.FC = () => {
             </table>
           </div>
         </div>
+        </>
       )}
     </div>
   );

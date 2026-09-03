@@ -90,7 +90,7 @@ export interface AddBatchExpenseRequest {
 export type DiscountLevel = 'NONE' | 'LOW' | 'MEDIUM' | 'MAX';
 export type SalePaymentMethod = 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'CREDIT';
 export type DeliveryPaymentMethod = 'COD' | 'CASH_DEPOSIT';
-export type OrderStatus = 'PENDING' | 'DELIVERED' | 'RETURNED';
+export type OrderStatus = 'PENDING' | 'READY' | 'DELIVERED' | 'RETURNED';
 
 export interface SaleItemRequest {
   productId: number;
