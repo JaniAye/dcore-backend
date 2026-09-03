@@ -25,6 +25,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [prodImageFile, setProdImageFile] = useState<File | null>(null);
   const [prodStandardPrice, setProdStandardPrice] = useState('');
   const [prodMinPrice, setProdMinPrice] = useState('');
+  const [showProductForm, setShowProductForm] = useState(false);
   
   // Create Category states
   const [catName, setCatName] = useState('');
@@ -126,6 +127,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
       if (fileInput) fileInput.value = '';
 
       loadAllData();
+      setShowProductForm(false);
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to register product');
     } finally {
@@ -306,9 +308,18 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
 
       {/* PRODUCTS TAB */}
       {activeSubTab === 'products' && (
-        <div className="layout-split">
+        <div className="flex-col gap-4">
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => { setShowProductForm(current => !current); setError(''); setSuccess(''); }}
+            >
+              <Plus size={16} /> {showProductForm ? 'Close Product Form' : 'Register New Product'}
+            </button>
+          </div>
           {/* Register Form */}
-          <div className="glass-panel" style={{ height: 'fit-content' }}>
+          {showProductForm && <div className="glass-panel" style={{ maxWidth: '700px', width: '100%', margin: '0 auto' }}>
             <h3 style={{ marginBottom: '1.5rem' }}>Register New Product</h3>
             <form onSubmit={handleCreateProduct} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
@@ -379,7 +390,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                 {loading ? 'Registering product...' : 'Register Product'}
               </button>
             </form>
-          </div>
+          </div>}
 
           {/* List panel */}
           <div className="glass-panel">
@@ -419,7 +430,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                     <th>Image</th>
                     <th>Name</th>
                     <th>Standard (Retail)</th>
-                    <th>Min Price</th>
+                    <th>Wholesale Price</th>
                     <th>Stock Remaining</th>
                   </tr>
                 </thead>
@@ -438,8 +449,21 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                         <strong>{product.name}</strong>
                         {product.description && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{product.description}</p>}
                       </td>
-                      <td>${product.standardPrice.toFixed(2)}</td>
-                      <td>${product.minPrice.toFixed(2)}</td>
+                      <td>
+                        <div>${product.standardPrice.toFixed(2)}</div>
+                        <small style={{ display: 'block', color: 'var(--accent-danger)', fontSize: '0.7rem', marginTop: '0.15rem' }}>
+                          {(() => {
+                            const latestBatch = batches
+                              .filter(batch => batch.productId === product.id)
+                              .sort((first, second) => second.id - first.id)[0];
+                            return latestBatch ? `$${latestBatch.costPerItem.toFixed(2)}` : 'N/A';
+                          })()}
+                        </small>
+                      </td>
+                      <td>${(batches
+                        .filter(batch => batch.productId === product.id)
+                        .sort((first, second) => second.id - first.id)[0]?.sellingPrice || product.standardPrice
+                      ).toFixed(2)}</td>
                       <td>
                         <span className={`badge ${product.totalStock > 0 ? 'badge-success' : 'badge-danger'}`}>
                           {product.totalStock} units
