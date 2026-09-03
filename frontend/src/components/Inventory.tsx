@@ -292,7 +292,7 @@ export const Inventory: React.FC = () => {
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="e.g. Smart Watch Active" 
+                  placeholder="e.g. Body Kit for Toyota Corolla 2020" 
                   value={prodName}
                   onChange={(e) => setProdName(e.target.value)}
                   required
@@ -606,7 +606,7 @@ export const Inventory: React.FC = () => {
                 <input 
                   type="text" 
                   className="form-input" 
-                  placeholder="e.g. Smart Electronics" 
+                  placeholder="e.g. Body Kit for Toyota Corolla 2020" 
                   value={catName}
                   onChange={(e) => setCatName(e.target.value)}
                   required
