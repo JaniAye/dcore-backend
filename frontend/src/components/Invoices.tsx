@@ -1,20 +1,31 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, CalendarDays, Receipt, Eye } from 'lucide-react';
+import { Search, CalendarDays, Receipt, Eye, X } from 'lucide-react';
 import { api } from '../services/api';
 import { CustomerDto, SaleDto } from '../types';
 
 type FilterRange = 'today' | 'this_week' | 'this_month' | 'this_year' | 'custom';
 
-export const Invoices: React.FC = () => {
+interface InvoicesProps {
+  searchFilter?: string;
+  paymentFilter?: string;
+}
+
+export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter }) => {
   const [sales, setSales] = useState<SaleDto[]>([]);
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchFilter || '');
   const [selectedRange, setSelectedRange] = useState<FilterRange>('this_week');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSale, setSelectedSale] = useState<SaleDto | null>(null);
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState(paymentFilter || 'ALL');
+
+  useEffect(() => {
+    if (searchFilter !== undefined) setSearchTerm(searchFilter);
+    if (paymentFilter !== undefined) setPaymentTypeFilter(paymentFilter);
+  }, [paymentFilter, searchFilter]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -26,11 +37,7 @@ export const Invoices: React.FC = () => {
         ]);
         setSales(salesResponse);
         setCustomers(customersResponse);
-        if (salesResponse.length > 0) {
-          setSelectedSale(salesResponse[0]);
-        } else {
-          setSelectedSale(null);
-        }
+        setSelectedSale(null);
       } catch (err) {
         setError('Unable to load invoices right now.');
       } finally {
@@ -47,6 +54,20 @@ export const Invoices: React.FC = () => {
       return acc;
     }, {});
   }, [customers]);
+
+  const getPaymentType = (sale: SaleDto) => {
+    if (sale.outstandingBalance > 0) {
+      return 'CREDIT';
+    }
+
+    const paymentMethods = Array.from(new Set(
+      sale.payments
+        .map(payment => payment.paymentMethod)
+        .filter(paymentMethod => paymentMethod !== 'CREDIT')
+    ));
+
+    return paymentMethods.length === 1 ? paymentMethods[0] : 'PAID';
+  };
 
   const filteredSales = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -111,8 +132,9 @@ export const Invoices: React.FC = () => {
     return sales
       .filter(matchesRange)
       .filter(matchesSearch)
+      .filter(sale => paymentTypeFilter === 'ALL' || getPaymentType(sale).split(', ').includes(paymentTypeFilter))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [customersById, endDate, sales, searchTerm, selectedRange, startDate]);
+  }, [customersById, endDate, paymentTypeFilter, sales, searchTerm, selectedRange, startDate]);
 
   const selectedSaleDetails = selectedSale
     ? filteredSales.find(sale => sale.id === selectedSale.id) || selectedSale
@@ -132,8 +154,8 @@ export const Invoices: React.FC = () => {
       )}
 
       <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div className="flex justify-between align-center" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
-          <div className="flex align-center gap-2" style={{ flexWrap: 'wrap' }}>
+          <div className="flex justify-between" style={{ flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
+            <div className="flex align-center gap-2" style={{ flexWrap: 'wrap', flex: '1 1 420px' }}>
             {[
               { key: 'today', label: 'Today' },
               { key: 'this_week', label: 'This Week' },
@@ -152,8 +174,8 @@ export const Invoices: React.FC = () => {
             ))}
           </div>
 
-          <div className="flex align-center gap-2" style={{ flexWrap: 'wrap' }}>
-            <div className="flex align-center gap-2" style={{ minWidth: '220px' }}>
+          <div className="flex align-center gap-2" style={{ flexWrap: 'wrap', flex: '1 1 420px', justifyContent: 'flex-end', alignItems: 'flex-end' }}>
+            <div className="flex align-center gap-2" style={{ minWidth: '220px', flex: '1 1 220px' }}>
               <Search size={16} color="var(--text-muted)" />
               <input
                 className="form-input w-full"
@@ -162,6 +184,14 @@ export const Invoices: React.FC = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
+            <select className="form-select" value={paymentTypeFilter} onChange={(e) => setPaymentTypeFilter(e.target.value)} style={{ minWidth: '160px', flex: '0 1 190px' }}>
+              <option value="ALL">All payment types</option>
+              <option value="CASH">Cash</option>
+              <option value="CARD">Card</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="CREDIT">Store Credit</option>
+              <option value="PAID">Paid (legacy)</option>
+            </select>
           </div>
         </div>
 
@@ -180,7 +210,7 @@ export const Invoices: React.FC = () => {
       </div>
 
       <div className="layout-split" style={{ gap: '1rem' }}>
-        <div className="glass-panel" style={{ padding: '1rem' }}>
+        <div className="glass-panel" style={{ padding: '1rem', width: '100%', maxWidth: '1100px', margin: '0 auto', gridColumn: '1 / -1' }}>
           {loading ? (
             <div className="text-center" style={{ padding: '2rem', color: 'var(--text-muted)' }}>Loading invoices...</div>
           ) : filteredSales.length === 0 ? (
@@ -193,6 +223,7 @@ export const Invoices: React.FC = () => {
                     <th>Invoice</th>
                     <th>Customer</th>
                     <th>Date</th>
+                    <th>Payment Type</th>
                     <th>Total</th>
                     <th>Discount</th>
                     <th></th>
@@ -214,6 +245,7 @@ export const Invoices: React.FC = () => {
                         </div>
                       </td>
                       <td>{new Date(sale.createdAt).toLocaleString()}</td>
+                      <td><span className="badge badge-info">{getPaymentType(sale)}</span></td>
                       <td>${sale.finalAmount.toFixed(2)}</td>
                       <td>${sale.discountAmount.toFixed(2)}</td>
                       <td>
@@ -229,8 +261,22 @@ export const Invoices: React.FC = () => {
           )}
         </div>
 
-        <div className="glass-panel" style={{ padding: '1rem', minHeight: '100%' }}>
-          {selectedSaleDetails ? (
+        {selectedSaleDetails && <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSelectedSale(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 80,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            background: 'rgba(0, 0, 0, 0.65)'
+          }}
+        >
+          <div className="glass-panel" onClick={(event) => event.stopPropagation()} style={{ padding: '1rem', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="flex-col gap-3">
               <div className="flex justify-between align-center" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div>
@@ -239,7 +285,12 @@ export const Invoices: React.FC = () => {
                     {selectedSaleDetails.customerName || 'Walk-in Customer'}
                   </p>
                 </div>
-                <div className="badge badge-info">{new Date(selectedSaleDetails.createdAt).toLocaleDateString()}</div>
+                <div className="flex align-center gap-2">
+                  <div className="badge badge-info">{new Date(selectedSaleDetails.createdAt).toLocaleDateString()}</div>
+                  <button type="button" className="btn btn-outline" onClick={() => setSelectedSale(null)} aria-label="Close invoice details" title="Close invoice details">
+                    <X size={16} />
+                  </button>
+                </div>
               </div>
 
               <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -273,13 +324,8 @@ export const Invoices: React.FC = () => {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="text-center" style={{ padding: '2rem', color: 'var(--text-muted)' }}>
-              <CalendarDays size={24} style={{ marginBottom: '0.5rem' }} />
-              <div>Select an invoice to review its items and totals.</div>
-            </div>
-          )}
-        </div>
+          </div>
+        </div>}
       </div>
     </div>
   );

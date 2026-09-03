@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Search, Wallet, CheckCircle } from 'lucide-react';
+import { Search, CheckCircle, Eye, X, ArrowRight } from 'lucide-react';
 import { api } from '../services/api';
 import { CustomerDto, PaymentRequest, SaleDto, SalePaymentMethod } from '../types';
 
-export const Customers: React.FC = () => {
+interface CustomersProps {
+  onOpenCustomerInvoices: (mobile: string, outstandingOnly: boolean) => void;
+}
+
+export const Customers: React.FC<CustomersProps> = ({ onOpenCustomerInvoices }) => {
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerDto | null>(null);
@@ -42,7 +46,13 @@ export const Customers: React.FC = () => {
     }
   };
 
-  const outstandingSales = customerSales.filter(sale => sale.outstandingBalance > 0);
+  const openOutstandingPopup = async (customer: CustomerDto) => {
+    await selectCustomer(customer);
+  };
+
+  const outstandingSales = customerSales
+    .filter(sale => sale.outstandingBalance > 0)
+    .sort((first, second) => new Date(first.createdAt).getTime() - new Date(second.createdAt).getTime());
   const customerOutstanding = outstandingSales.reduce((total, sale) => total + sale.outstandingBalance, 0);
 
   const handlePayment = async (event: React.FormEvent) => {
@@ -90,35 +100,54 @@ export const Customers: React.FC = () => {
       {success && <div className="glass-card" style={{ color: 'var(--accent-success)' }}><CheckCircle size={16} /> {success}</div>}
 
       <div className="layout-split">
-        <div className="glass-panel">
+        <div className="glass-panel" style={{ width: '100%', maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ position: 'relative', marginBottom: '1rem' }}>
             <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '0.75rem', color: 'var(--text-muted)' }} />
             <input className="form-input" style={{ paddingLeft: '2.25rem' }} placeholder="Search by name or mobile number..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
           </div>
           <div className="table-container">
             <table>
-              <thead><tr><th>Name</th><th>Mobile</th><th>Total Spend</th><th>Outstanding</th></tr></thead>
+              <thead><tr><th>Name</th><th>Mobile</th><th>Total Spend</th><th>Outstanding</th><th>Action</th></tr></thead>
               <tbody>
                 {filteredCustomers.map(customer => (
-                  <tr key={customer.id} onClick={() => selectCustomer(customer)} style={{ cursor: 'pointer', background: selectedCustomer?.id === customer.id ? 'rgba(99, 102, 241, 0.12)' : undefined }}>
+                  <tr key={customer.id} onClick={() => onOpenCustomerInvoices(customer.mobile, false)} style={{ cursor: 'pointer' }}>
                     <td><strong>{customer.name}</strong></td>
                     <td>{customer.mobile}</td>
                     <td>${customer.totalSpend.toFixed(2)}</td>
                     <td className={customer.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>${customer.outstandingBalance.toFixed(2)}</td>
+                    <td>
+                      <button type="button" className="btn btn-secondary" onClick={(event) => { event.stopPropagation(); openOutstandingPopup(customer); }} title="Check outstanding balance" aria-label="Check outstanding balance" style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                        <Eye size={13} /> Check
+                      </button>
+                    </td>
                   </tr>
                 ))}
-                {filteredCustomers.length === 0 && <tr><td colSpan={4} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No customers found.</td></tr>}
+                {filteredCustomers.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No customers found.</td></tr>}
               </tbody>
             </table>
           </div>
         </div>
 
-        <div className="glass-panel">
-          {selectedCustomer ? (
+        {selectedCustomer && <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSelectedCustomer(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 80,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            background: 'rgba(0, 0, 0, 0.65)'
+          }}
+        >
+          <div className="glass-panel" onClick={(event) => event.stopPropagation()} style={{ width: '100%', maxWidth: '520px' }}>
             <div className="flex-col gap-4">
               <div className="flex justify-between align-center">
                 <div><h2>{selectedCustomer.name}</h2><p style={{ color: 'var(--text-secondary)' }}>{selectedCustomer.mobile}</p></div>
-                <Wallet size={24} color="var(--accent-warning)" />
+                <button type="button" className="btn btn-outline" onClick={() => setSelectedCustomer(null)} aria-label="Close outstanding details"><X size={16} /></button>
               </div>
               <div className="flex justify-between"><span>Total Spend</span><strong>${selectedCustomer.totalSpend.toFixed(2)}</strong></div>
               <div className="flex justify-between"><span>Outstanding Balance</span><strong className="text-warning">${customerOutstanding.toFixed(2)}</strong></div>
@@ -132,9 +161,12 @@ export const Customers: React.FC = () => {
                 </select>
                 <button type="submit" className="btn btn-primary" disabled={loading || customerOutstanding <= 0}>{loading ? 'Recording...' : 'Record Payment'}</button>
               </form>
+              <button type="button" className="btn btn-secondary" onClick={() => onOpenCustomerInvoices(selectedCustomer.mobile, true)}>
+                <ArrowRight size={16} /> See All Outstanding Bills
+              </button>
             </div>
-          ) : <p style={{ color: 'var(--text-muted)' }}>Select a customer to view details and record a payment.</p>}
-        </div>
+          </div>
+        </div>}
       </div>
     </div>
   );

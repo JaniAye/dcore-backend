@@ -23,6 +23,8 @@ export const App: React.FC = () => {
   const [token, setToken] = useState<string | null>(null);
   const [inventoryStockFilter, setInventoryStockFilter] = useState<InventoryStockFilter>('ALL');
   const [expenseMonthFilter, setExpenseMonthFilter] = useState('');
+  const [invoiceSearchFilter, setInvoiceSearchFilter] = useState('');
+  const [invoicePaymentFilter, setInvoicePaymentFilter] = useState('ALL');
 
   const syncAuthState = () => {
     const t = localStorage.getItem('dcore_token');
@@ -73,8 +75,14 @@ export const App: React.FC = () => {
         {currentTab === 'pos' && <POS />}
         {currentTab === 'inventory' && <Inventory stockFilter={inventoryStockFilter} />}
         {currentTab === 'delivery' && <DeliveryOrders />}
-        {currentTab === 'invoices' && <Invoices />}
-        {currentTab === 'customers' && <Customers />}
+        {currentTab === 'invoices' && <Invoices searchFilter={invoiceSearchFilter} paymentFilter={invoicePaymentFilter} />}
+        {currentTab === 'customers' && (
+          <Customers onOpenCustomerInvoices={(mobile, outstandingOnly) => {
+            setInvoiceSearchFilter(mobile);
+            setInvoicePaymentFilter(outstandingOnly ? 'CREDIT' : 'ALL');
+            setCurrentTab('invoices');
+          }} />
+        )}
         {currentTab === 'expenses' && <Expenses monthFilter={expenseMonthFilter} />}
       </main>
     </div>
