@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { DeliveryOrderDto, ProductDto, OrderStatus, DeliveryPaymentMethod } from '../types';
-import { Check, RotateCcw, Truck, ShieldCheck, List, AlertTriangle, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Check, ShieldCheck, ChevronLeft, ChevronRight, Trash2, Pencil } from 'lucide-react';
 
 export const DeliveryOrders: React.FC = () => {
   const [orders, setOrders] = useState<DeliveryOrderDto[]>([]);
   const [products, setProducts] = useState<ProductDto[]>([]);
 
   const [deliveryDetails, setDeliveryDetails] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [remark, setRemark] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<DeliveryPaymentMethod>('COD');
   const [codAmount, setCodAmount] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
@@ -25,10 +27,13 @@ export const DeliveryOrders: React.FC = () => {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
   const [pendingOrderIndex, setPendingOrderIndex] = useState(0);
   const [orderStatusFilter, setOrderStatusFilter] = useState<'ALL' | OrderStatus>('ALL');
   const [orderDateFilter, setOrderDateFilter] = useState('');
   const [orderProductFilter, setOrderProductFilter] = useState('');
+  const [orderSearchFilter, setOrderSearchFilter] = useState('');
+  const [orderIdFilter, setOrderIdFilter] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -41,7 +46,10 @@ export const DeliveryOrders: React.FC = () => {
     const matchesStatus = orderStatusFilter === 'ALL' || order.status === orderStatusFilter;
     const matchesDate = !orderDateFilter || order.orderDate.startsWith(orderDateFilter);
     const matchesProduct = !orderProductFilter || order.items.some(item => item.productName === orderProductFilter);
-    return matchesStatus && matchesDate && matchesProduct;
+    const searchableText = `${order.deliveryDetails || ''} ${order.mobileNumber || ''}`.toLowerCase();
+    const matchesSearch = !orderSearchFilter.trim() || searchableText.includes(orderSearchFilter.trim().toLowerCase());
+    const matchesOrderId = !orderIdFilter || String(order.id) === orderIdFilter;
+    return matchesStatus && matchesDate && matchesProduct && matchesSearch && matchesOrderId;
   });
 
   const loadData = async () => {
@@ -141,6 +149,11 @@ export const DeliveryOrders: React.FC = () => {
       return;
     }
 
+    if (!mobileNumber.trim()) {
+      setError('Please enter a mobile number.');
+      return;
+    }
+
     if (selectedItems.length === 0) {
       setError('Please add at least one item.');
       return;
@@ -151,19 +164,30 @@ export const DeliveryOrders: React.FC = () => {
     setSuccess('');
 
     try {
-      await api.deliveryOrders.create({
+      const orderData = {
         deliveryDetails: deliveryDetails.trim(),
+        mobileNumber: mobileNumber.trim(),
+        remark: remark.trim() || undefined,
         paymentMethod,
         codAmount: codAmount ? parseFloat(codAmount) : 0,
         deliveryFee: deliveryFee ? parseFloat(deliveryFee) : 0,
         items: selectedItems.map(i => ({ productId: i.productId, quantity: i.quantity }))
-      });
-      setSuccess('Delivery order created successfully!');
+      };
+      if (editingOrderId !== null) {
+        await api.deliveryOrders.update(editingOrderId, orderData);
+        setSuccess(`Delivery order #${editingOrderId} updated successfully!`);
+      } else {
+        await api.deliveryOrders.create(orderData);
+        setSuccess('Delivery order created successfully!');
+      }
       setDeliveryDetails('');
+      setMobileNumber('');
+      setRemark('');
       setPaymentMethod('COD');
       setCodAmount('');
       setDeliveryFee('');
       setSelectedItems([]);
+      setEditingOrderId(null);
       setShowCreateForm(false);
       loadData();
     } catch (err: any) {
@@ -171,6 +195,31 @@ export const DeliveryOrders: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditOrder = (order: DeliveryOrderDto) => {
+    setEditingOrderId(order.id);
+    setDeliveryDetails(order.deliveryDetails || '');
+    setMobileNumber(order.mobileNumber || order.customerMobile || '');
+    setRemark(order.remark || '');
+    setPaymentMethod(order.paymentMethod as DeliveryPaymentMethod);
+    setCodAmount(String(order.codAmount || 0));
+    setDeliveryFee(String(order.deliveryFee || 0));
+    setSelectedItems(order.items.map(item => {
+      const product = products.find(candidate => candidate.id === item.productId);
+      return {
+        productId: item.productId,
+        quantity: item.quantity,
+        name: item.productName,
+        stock: (product?.totalStock || 0) + item.quantity
+      };
+    }));
+    setProductSearchQuery('');
+    setFilteredProducts([]);
+    setShowProductDropdown(false);
+    setError('');
+    setSuccess('');
+    setShowCreateForm(true);
   };
 
   const handleUpdateStatus = async (orderId: number, status: OrderStatus) => {
@@ -236,7 +285,21 @@ export const DeliveryOrders: React.FC = () => {
             <ShieldCheck size={16} /> Auto-Complete Old (8d+)
           </button>
           <button 
-            onClick={() => { setShowCreateForm(!showCreateForm); setError(''); setSuccess(''); }} 
+            onClick={() => {
+              if (!showCreateForm) {
+                setEditingOrderId(null);
+                setDeliveryDetails('');
+                setMobileNumber('');
+                setRemark('');
+                setSelectedItems([]);
+                setPaymentMethod('COD');
+                setCodAmount('');
+                setDeliveryFee('');
+              }
+              setShowCreateForm(!showCreateForm);
+              setError('');
+              setSuccess('');
+            }}
             className="btn btn-primary"
           >
             {showCreateForm ? 'View Orders' : '+ New Delivery Order'}
@@ -272,18 +335,42 @@ export const DeliveryOrders: React.FC = () => {
 
       {showCreateForm ? (
         <div className="glass-panel" style={{ maxWidth: '700px', margin: '0 auto', width: '100%' }}>
-          <h2 style={{ marginBottom: '1.5rem' }}>Create Delivery Dispatch</h2>
+          <h2 style={{ marginBottom: '1.5rem' }}>{editingOrderId !== null ? 'Update Delivery Dispatch' : 'Create Delivery Dispatch'}</h2>
           <form onSubmit={handleCreateOrder} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="form-group">
-              <label className="form-label">Delivery Details (Name, Address, Mobile) *</label>
+              <label className="form-label">Delivery Details (Name and Address) *</label>
               <textarea
                 className="form-input"
                 style={{ minHeight: '100px', fontFamily: 'inherit', resize: 'vertical' }}
-                placeholder="Enter delivery recipient name, address, contact numbers and any special instructions..."
+                placeholder="Enter the delivery recipient name and address..."
                 value={deliveryDetails}
                 onChange={(e) => setDeliveryDetails(e.target.value)}
                 required
               />
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Mobile Number *</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  placeholder="Enter mobile number"
+                  value={mobileNumber}
+                  onChange={(e) => setMobileNumber(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Remark</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Optional remark"
+                  value={remark}
+                  onChange={(e) => setRemark(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="form-row">
@@ -414,7 +501,7 @@ export const DeliveryOrders: React.FC = () => {
             </div>
 
             <button type="submit" className="btn btn-primary w-full mt-4" disabled={loading || selectedItems.length === 0}>
-              {loading ? 'Creating order...' : 'Dispatch Delivery Order'}
+              {loading ? (editingOrderId !== null ? 'Updating order...' : 'Creating order...') : (editingOrderId !== null ? 'Update Delivery Order' : 'Dispatch Delivery Order')}
             </button>
           </form>
         </div>
@@ -447,6 +534,10 @@ export const DeliveryOrders: React.FC = () => {
                     <p style={{ whiteSpace: 'pre-wrap', marginTop: '0.35rem' }}>{pendingOrder.deliveryDetails || 'No delivery details'}</p>
                   </div>
                   <div>
+                    <span className="form-label">Mobile Number</span>
+                    <p style={{ marginTop: '0.35rem' }}>{pendingOrder.mobileNumber || 'No mobile number'}</p>
+                  </div>
+                  <div>
                     <span className="form-label">Order Date</span>
                     <p style={{ marginTop: '0.35rem' }}>{new Date(pendingOrder.orderDate).toLocaleString()}</p>
                   </div>
@@ -461,6 +552,11 @@ export const DeliveryOrders: React.FC = () => {
                     <span className="form-label">Delivery Fee</span>
                     <p style={{ marginTop: '0.35rem', fontSize: '1.1rem', fontWeight: 600 }}>${pendingOrder.deliveryFee.toFixed(2)}</p>
                   </div>
+                </div>
+
+                <div style={{ marginBottom: '1rem' }}>
+                  <span className="form-label">Remark</span>
+                  <p style={{ whiteSpace: 'pre-wrap', marginTop: '0.35rem' }}>{pendingOrder.remark || 'No remark'}</p>
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '1rem' }}>
@@ -482,6 +578,9 @@ export const DeliveryOrders: React.FC = () => {
                   <button type="button" className="btn btn-success" onClick={() => handleUpdateStatus(pendingOrder.id, 'READY')} disabled={loading}>
                     <Check size={16} /> Mark Ready
                   </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => handleEditOrder(pendingOrder)} disabled={loading}>
+                    <Pencil size={16} /> Edit Order
+                  </button>
                   <button type="button" className="btn btn-outline" onClick={() => setPendingOrderIndex(index => Math.min(pendingOrders.length - 1, index + 1))} disabled={pendingOrderIndex === pendingOrders.length - 1}>
                     Next <ChevronRight size={16} />
                   </button>
@@ -495,6 +594,27 @@ export const DeliveryOrders: React.FC = () => {
         <div className="glass-panel">
           <h2 style={{ marginBottom: '1rem' }}>Delivery Orders</h2>
           <div className="form-row" style={{ marginBottom: '1rem' }}>
+            <div className="form-group">
+              <label className="form-label">Search Orders</label>
+              <input
+                type="search"
+                className="form-input"
+                placeholder="Search mobile or delivery details"
+                value={orderSearchFilter}
+                onChange={(e) => setOrderSearchFilter(e.target.value)}
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Filter by Order ID</label>
+              <input
+                type="number"
+                min="1"
+                className="form-input"
+                placeholder="Enter ID, e.g. 1"
+                value={orderIdFilter}
+                onChange={(e) => setOrderIdFilter(e.target.value)}
+              />
+            </div>
             <div className="form-group">
               <label className="form-label">Filter by Status</label>
               <select
@@ -538,13 +658,12 @@ export const DeliveryOrders: React.FC = () => {
                 <tr>
                   <th>Order ID</th>
                   <th>Delivery Details</th>
+                  <th>Mobile No.</th>
                   <th>Items and Quantities</th>
                   <th>Order Date</th>
                   <th>Fee</th>
-                  <th>Payment Type</th>
                   <th>COD Value</th>
                   <th>Status</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -554,6 +673,7 @@ export const DeliveryOrders: React.FC = () => {
                     <td>
                       {order.deliveryDetails || 'N/A'}
                     </td>
+                    <td>{order.mobileNumber || 'N/A'}</td>
                     <td className="delivery-items-cell">
                       {order.items.map(item => (
                         <div key={`${order.id}-${item.productId}`} className="delivery-item-row">
@@ -564,74 +684,32 @@ export const DeliveryOrders: React.FC = () => {
                     </td>
                     <td>{new Date(order.orderDate).toLocaleDateString()}</td>
                     <td>${order.deliveryFee.toFixed(2)}</td>
-                    <td>
-                      <span className="badge badge-info">{order.paymentMethod}</span>
-                    </td>
                     <td>${order.codAmount.toFixed(2)}</td>
                     <td>
-                      <span className={`badge ${
-                        order.status === 'PENDING' ? 'badge-warning' : 
-                        order.status === 'READY' || order.status === 'DELIVERED' ? 'badge-success' : 'badge-danger'
-                      }`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 align-center">
+                        <select
+                          className={`form-select status-select status-select-${order.status.toLowerCase()}`}
+                          value={order.status}
+                          onChange={(e) => handleUpdateStatus(order.id, e.target.value as OrderStatus)}
+                          disabled={loading}
+                          aria-label={`Change status for order #${order.id}`}
+                          style={{ minWidth: '125px' }}
+                        >
+                          <option value="PENDING">Pending</option>
+                          <option value="READY">Ready</option>
+                          <option value="DELIVERED">Delivered</option>
+                          <option value="RETURNED">Returned</option>
+                        </select>
                         {order.status === 'PENDING' && (
                           <button
                             onClick={() => handleDeleteOrder(order.id)}
                             className="btn btn-danger"
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            title={`Delete order #${order.id}`}
+                            aria-label={`Delete order #${order.id}`}
+                            style={{ padding: '0.25rem', minWidth: '28px' }}
                           >
-                            <Trash2 size={12} /> Delete Order
+                            <Trash2 size={13} />
                           </button>
-                        )}
-                        {order.status === 'READY' && (
-                          <>
-                            <button 
-                              onClick={() => handleUpdateStatus(order.id, 'DELIVERED')}
-                              className="btn btn-success" 
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                            >
-                              <Check size={12} /> Deliver
-                            </button>
-                            <button 
-                              onClick={() => handleUpdateStatus(order.id, 'RETURNED')}
-                              className="btn btn-danger" 
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                            >
-                              <RotateCcw size={12} /> Return
-                            </button>
-                            <button
-                              onClick={() => handleUpdateStatus(order.id, 'PENDING')}
-                              className="btn btn-secondary"
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                            >
-                              Mark Pending
-                            </button>
-                          </>
-                        )}
-                        {order.status === 'DELIVERED' && (
-                          <>
-                            <button
-                              onClick={() => handleUpdateStatus(order.id, 'RETURNED')}
-                              className="btn btn-danger"
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                            >
-                              <RotateCcw size={12} /> Return
-                            </button>
-                            <button
-                              onClick={() => handleUpdateStatus(order.id, 'PENDING')}
-                              className="btn btn-secondary"
-                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                            >
-                              Mark Pending
-                            </button>
-                          </>
-                        )}
-                        {order.status === 'RETURNED' && (
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Cancelled</span>
                         )}
                       </div>
                     </td>
@@ -639,7 +717,7 @@ export const DeliveryOrders: React.FC = () => {
                 ))}
                 {filteredOrders.length === 0 && (
                   <tr>
-                    <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                       {orders.length === 0
                         ? 'No delivery orders registered yet. Click "+ New Delivery Order" to create one.'
                         : 'No delivery orders match the selected filters.'}

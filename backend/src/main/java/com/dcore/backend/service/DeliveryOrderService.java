@@ -36,6 +36,8 @@ public class DeliveryOrderService {
         DeliveryOrder order = DeliveryOrder.builder()
                 .customer(customer)
                 .deliveryDetails(request.getDeliveryDetails())
+                .mobileNumber(request.getMobileNumber())
+                .remark(request.getRemark())
                 .orderDate(LocalDateTime.now())
                 .status(DeliveryOrder.OrderStatus.PENDING)
                 .paymentMethod(request.getPaymentMethod())
@@ -45,9 +47,34 @@ public class DeliveryOrderService {
                 .build();
 
         DeliveryOrder savedOrder = deliveryOrderRepository.save(order);
+        addOrderItems(savedOrder, request.getItems());
+        return mapToDto(savedOrder);
+    }
+
+    @Transactional
+    public DeliveryOrderDto updateOrder(Long orderId, DeliveryOrderRequest request) {
+        DeliveryOrder order = deliveryOrderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+        if (order.getStatus() != DeliveryOrder.OrderStatus.PENDING) {
+            throw new RuntimeException("Only pending orders can be edited");
+        }
+
+        restoreOrderItems(order);
+        order.getItems().clear();
+        order.setDeliveryDetails(request.getDeliveryDetails());
+        order.setMobileNumber(request.getMobileNumber());
+        order.setRemark(request.getRemark());
+        order.setPaymentMethod(request.getPaymentMethod());
+        order.setCodAmount(request.getCodAmount());
+        order.setDeliveryFee(request.getDeliveryFee());
+        addOrderItems(order, request.getItems());
+        return mapToDto(deliveryOrderRepository.save(order));
+    }
+
+    private void addOrderItems(DeliveryOrder order, List<DeliveryOrderRequest.DeliveryOrderItemRequest> itemRequests) {
         List<DeliveryOrderItem> orderItems = new ArrayList<>();
 
-        for (DeliveryOrderRequest.DeliveryOrderItemRequest itemReq : request.getItems()) {
+        for (DeliveryOrderRequest.DeliveryOrderItemRequest itemReq : itemRequests) {
             Product product = productRepository.findById(itemReq.getProductId())
                     .orElseThrow(() -> new RuntimeException("Product not found: " + itemReq.getProductId()));
 
@@ -69,7 +96,7 @@ public class DeliveryOrderService {
                 BigDecimal landedCost = calculateLandedCost(batch);
 
                 DeliveryOrderItem orderItem = DeliveryOrderItem.builder()
-                        .deliveryOrder(savedOrder)
+                        .deliveryOrder(order)
                         .product(product)
                         .batch(batch)
                         .quantity(deduct)
@@ -82,8 +109,15 @@ public class DeliveryOrderService {
             }
         }
 
-        savedOrder.setItems(orderItems);
-        return mapToDto(savedOrder);
+        order.getItems().addAll(orderItems);
+    }
+
+    private void restoreOrderItems(DeliveryOrder order) {
+        for (DeliveryOrderItem item : order.getItems()) {
+            StockBatch batch = item.getBatch();
+            batch.setQuantityRemaining(batch.getQuantityRemaining() + item.getQuantity());
+            stockBatchRepository.save(batch);
+        }
     }
 
     private BigDecimal calculateLandedCost(StockBatch batch) {
@@ -171,6 +205,8 @@ public class DeliveryOrderService {
                 .customerName(order.getCustomer() != null ? order.getCustomer().getName() : null)
                 .customerMobile(order.getCustomer() != null ? order.getCustomer().getMobile() : null)
                 .deliveryDetails(order.getDeliveryDetails())
+                .mobileNumber(order.getMobileNumber())
+                .remark(order.getRemark())
                 .orderDate(order.getOrderDate())
                 .status(order.getStatus())
                 .paymentMethod(order.getPaymentMethod())

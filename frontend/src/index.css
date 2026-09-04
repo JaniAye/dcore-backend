@@ -415,6 +415,45 @@ h3 {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.status-select {
+  min-width: 102px;
+  width: 102px;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.status-select-pending {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.45);
+  color: var(--accent-warning);
+}
+
+.status-select-ready {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: rgba(99, 102, 241, 0.45);
+  color: var(--accent-primary);
+}
+
+.status-select-delivered {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.45);
+  color: var(--accent-success);
+}
+
+.status-select-returned {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: var(--accent-danger);
+}
+
+.status-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
 .form-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

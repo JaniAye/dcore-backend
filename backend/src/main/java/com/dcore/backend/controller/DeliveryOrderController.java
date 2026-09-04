@@ -27,6 +27,13 @@ public class DeliveryOrderController {
         return ResponseEntity.ok(deliveryOrderService.getAllOrders());
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<DeliveryOrderDto> updateOrder(
+            @PathVariable Long id,
+            @RequestBody DeliveryOrderRequest request) {
+        return ResponseEntity.ok(deliveryOrderService.updateOrder(id, request));
+    }
+
     @PatchMapping("/{id}/status")
     public ResponseEntity<DeliveryOrderDto> updateStatus(
             @PathVariable Long id,

@@ -15,6 +15,8 @@ import java.util.List;
 public class DeliveryOrderRequest {
     private Long customerId;  // Optional
     private String deliveryDetails;  // Customer delivery details as text
+    private String mobileNumber;
+    private String remark;
     private DeliveryOrder.PaymentMethod paymentMethod;
     private BigDecimal codAmount;
     private BigDecimal deliveryFee;

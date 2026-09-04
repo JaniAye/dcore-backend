@@ -24,6 +24,12 @@ public class DeliveryOrder {
     @Column(columnDefinition = "TEXT", nullable = true)
     private String deliveryDetails;
 
+    @Column(nullable = true)
+    private String mobileNumber;
+
+    @Column(columnDefinition = "TEXT", nullable = true)
+    private String remark;
+
     @Column(nullable = false)
     private LocalDateTime orderDate;
 

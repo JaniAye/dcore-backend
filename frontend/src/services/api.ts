@@ -250,6 +250,10 @@ export const api = {
       const res = await client.post('/delivery-orders', data);
       return res.data;
     },
+    update: async (id: number, data: DeliveryOrderRequest): Promise<DeliveryOrderDto> => {
+      const res = await client.put(`/delivery-orders/${id}`, data);
+      return res.data;
+    },
     updateStatus: async (id: number, status: OrderStatus): Promise<DeliveryOrderDto> => {
       const res = await client.patch(`/delivery-orders/${id}/status`, null, { params: { status } });
       return res.data;

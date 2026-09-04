@@ -14,6 +14,8 @@ public class DeliveryOrderDto {
     private String customerName;
     private String customerMobile;
     private String deliveryDetails;
+    private String mobileNumber;
+    private String remark;
     private LocalDateTime orderDate;
     private DeliveryOrder.OrderStatus status;
     private DeliveryOrder.PaymentMethod paymentMethod;
