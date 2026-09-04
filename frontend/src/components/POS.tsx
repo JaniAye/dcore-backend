@@ -14,7 +14,7 @@ export const POS: React.FC = () => {
   interface CartItem {
     product: ProductDto;
     quantity: number;
-    basePrice: number; // product.standardPrice or batch.sellingPrice
+    basePrice: number; // Product retail or wholesale default
     useWholesale: boolean;
     discountType: 'NONE' | 'PERCENTAGE' | 'FIXED';
     discountValue: number;
@@ -111,15 +111,9 @@ export const POS: React.FC = () => {
     }
   };
 
-  // Get wholesale price from latest batch of a product
-  const getProductWholesalePrice = (productId: number, defaultStandardPrice: number): number => {
-    const productBatches = batches
-      .filter(b => b.productId === productId)
-      .sort((a, b) => b.id - a.id); // latest first
-    if (productBatches.length > 0) {
-      return productBatches[0].sellingPrice;
-    }
-    return defaultStandardPrice;
+  // Wholesale is a product default; batches only determine FIFO cost.
+  const getProductWholesalePrice = (product: ProductDto): number => {
+    return product.wholesalePrice || product.standardPrice;
   };
 
   // Add item to cart
@@ -415,7 +409,7 @@ export const POS: React.FC = () => {
                         onChange={(e) => {
                           const isWholesale = e.target.value === 'wholesale';
                           const defaultPrice = isWholesale 
-                            ? getProductWholesalePrice(item.product.id, item.product.standardPrice)
+                            ? getProductWholesalePrice(item.product)
                             : item.product.standardPrice;
                           updateCartItem(index, { useWholesale: isWholesale, basePrice: defaultPrice });
                         }}

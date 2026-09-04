@@ -16,5 +16,5 @@ public class ProductDefaultsDto {
     private BigDecimal lastBaseCost;
     private List<CreateStockBatchRequest.ExpenseItemDto> lastExpenses;
     private BigDecimal standardPrice;
-    private BigDecimal minPrice;
+    private BigDecimal wholesalePrice;
 }

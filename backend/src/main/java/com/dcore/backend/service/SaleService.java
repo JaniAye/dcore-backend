@@ -98,7 +98,9 @@ public class SaleService {
                 // simple)
                 // For simplicity, we just store the totals in the SaleItem
                 // Pricing logic: use override price if provided, otherwise batch selling price
-                BigDecimal batchSellingPrice = batch.getSellingPrice();
+                BigDecimal batchSellingPrice = product.getWholesalePrice() != null
+                    ? product.getWholesalePrice()
+                    : batch.getSellingPrice();
                 BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null ? itemReq.getOverridePrice() : batchSellingPrice;
                 
                 if (Boolean.TRUE.equals(request.getIsInternal())) {

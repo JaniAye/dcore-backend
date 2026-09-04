@@ -36,6 +36,5 @@ public class Product {
     @Column(nullable = false)
     private BigDecimal standardPrice;
 
-    @Column(nullable = false)
-    private BigDecimal minPrice; // Used for floor validation
+    private BigDecimal wholesalePrice;
 }

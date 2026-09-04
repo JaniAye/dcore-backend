@@ -16,6 +16,6 @@ public class ProductDto {
     private String modelsSupported;
     private String imageUrl;
     private BigDecimal standardPrice;
-    private BigDecimal minPrice;
+    private BigDecimal wholesalePrice;
     private Integer totalStock;
 }

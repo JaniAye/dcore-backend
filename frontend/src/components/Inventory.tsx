@@ -24,7 +24,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [prodDesc, setProdDesc] = useState('');
   const [prodImageFile, setProdImageFile] = useState<File | null>(null);
   const [prodStandardPrice, setProdStandardPrice] = useState('');
-  const [prodMinPrice, setProdMinPrice] = useState('');
+  const [prodWholesalePrice, setProdWholesalePrice] = useState('');
   const [showProductForm, setShowProductForm] = useState(false);
   
   // Create Category states
@@ -32,9 +32,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
 
   // Create Stock Batch states
   const [batchProductId, setBatchProductId] = useState('');
+  const [batchProductQuery, setBatchProductQuery] = useState('');
   const [batchQty, setBatchQty] = useState('');
   const [batchBaseCost, setBatchBaseCost] = useState('');
-  const [batchSellingPrice, setBatchSellingPrice] = useState('');
   const [batchExpenses, setBatchExpenses] = useState<ExpenseItemDto[]>([]);
   const [newExpenseDesc, setNewExpenseDesc] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
@@ -113,7 +113,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
         description: prodDesc || undefined,
         imageUrl: imageUrl || undefined,
         standardPrice: prodStandardPrice ? parseFloat(prodStandardPrice) : 0,
-        minPrice: prodMinPrice ? parseFloat(prodMinPrice) : 0
+        wholesalePrice: prodWholesalePrice ? parseFloat(prodWholesalePrice) : 0
       });
 
       setSuccess('Product registered successfully!');
@@ -121,7 +121,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
       setProdDesc('');
       setProdImageFile(null);
       setProdStandardPrice('');
-      setProdMinPrice('');
+      setProdWholesalePrice('');
       
       const fileInput = document.getElementById('prod-img-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
@@ -174,7 +174,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   // Stock Batch Creation
   const handleCreateBatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!batchProductId || !batchQty || !batchBaseCost || !batchSellingPrice) {
+    if (!batchProductId || !batchQty || !batchBaseCost) {
       setError('Please fill in all required batch fields.');
       return;
     }
@@ -183,29 +183,25 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
     setSuccess('');
 
     try {
-      // Fetch latest prices for standard/min updates or fallback
+      // Keep the product's retail price editable while receiving stock.
       const prod = products.find(p => p.id === parseInt(batchProductId));
-      const sPrice = prodStandardPrice ? parseFloat(prodStandardPrice) : (prod?.standardPrice || parseFloat(batchSellingPrice));
-      const mPrice = prodMinPrice ? parseFloat(prodMinPrice) : (prod?.minPrice || parseFloat(batchSellingPrice));
+      const sPrice = prodStandardPrice ? parseFloat(prodStandardPrice) : (prod?.standardPrice || 0);
 
       await api.batches.create({
         productId: parseInt(batchProductId),
         quantity: parseInt(batchQty),
         baseCost: parseFloat(batchBaseCost),
-        sellingPrice: parseFloat(batchSellingPrice),
         expenses: batchExpenses,
-        standardPrice: sPrice,
-        minPrice: mPrice
+        standardPrice: sPrice
       });
 
       setSuccess('Stock batch added successfully!');
       setBatchProductId('');
       setBatchQty('');
       setBatchBaseCost('');
-      setBatchSellingPrice('');
+      setBatchProductQuery('');
       setBatchExpenses([]);
       setProdStandardPrice('');
-      setProdMinPrice('');
       loadAllData();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to add stock batch');
@@ -270,13 +266,13 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
           >
             <List size={14} /> Stock Batches
           </button>
-          <button 
+          {/* <button 
             onClick={() => { setActiveSubTab('categories'); setError(''); setSuccess(''); }} 
             className={`btn ${activeSubTab === 'categories' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', border: 'none', boxShadow: 'none' }}
           >
             <Tag size={14} /> Categories
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -375,13 +371,13 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Min Price Floor ($)</label>
+                  <label className="form-label">Wholesale Price ($)</label>
                   <input 
                     type="number" 
                     className="form-input" 
                     placeholder="0.00" 
-                    value={prodMinPrice}
-                    onChange={(e) => setProdMinPrice(e.target.value)}
+                    value={prodWholesalePrice}
+                    onChange={(e) => setProdWholesalePrice(e.target.value)}
                   />
                 </div>
               </div>
@@ -460,10 +456,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                           })()}
                         </small>
                       </td>
-                      <td>${(batches
-                        .filter(batch => batch.productId === product.id)
-                        .sort((first, second) => second.id - first.id)[0]?.sellingPrice || product.standardPrice
-                      ).toFixed(2)}</td>
+                      <td>${(product.wholesalePrice || 0).toFixed(2)}</td>
                       <td>
                         <span className={`badge ${product.totalStock > 0 ? 'badge-success' : 'badge-danger'}`}>
                           {product.totalStock} units
@@ -496,17 +489,24 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
             <form onSubmit={handleCreateBatch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
                 <label className="form-label">Target Product</label>
-                <select 
-                  className="form-select" 
-                  value={batchProductId} 
-                  onChange={(e) => setBatchProductId(e.target.value)}
+                <input
+                  className="form-input"
+                  placeholder="Search products..."
+                  value={batchProductQuery}
+                  onChange={(e) => {
+                    const query = e.target.value;
+                    setBatchProductQuery(query);
+                    const selected = products.find(p => `${p.name} (${p.itemCode})` === query);
+                    setBatchProductId(selected ? String(selected.id) : '');
+                  }}
+                  list="batch-product-options"
                   required
-                >
-                  <option value="">Select Product</option>
+                />
+                <datalist id="batch-product-options">
                   {products.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.itemCode})</option>
+                    <option key={p.id} value={`${p.name} (${p.itemCode})`} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               <div className="form-row">
@@ -534,18 +534,6 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Wholesale Price / Unit ($)</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  placeholder="0.00" 
-                  value={batchSellingPrice}
-                  onChange={(e) => setBatchSellingPrice(e.target.value)}
-                  required
-                />
-              </div>
-
               {/* Price default overrides */}
               <div className="form-row" style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
                 <span style={{ gridColumn: '1/-1', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>UPDATE DEFAULT PRODUCT PRICES (OPTIONAL)</span>
@@ -554,19 +542,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   <input 
                     type="number" 
                     className="form-input" 
-                    placeholder="Same as Wholesale if empty"
+                    placeholder="Keep current retail price"
                     value={prodStandardPrice}
                     onChange={(e) => setProdStandardPrice(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '0.7rem' }}>Min Price Floor ($)</label>
-                  <input 
-                    type="number" 
-                    className="form-input" 
-                    placeholder="Same as Wholesale if empty"
-                    value={prodMinPrice}
-                    onChange={(e) => setProdMinPrice(e.target.value)}
                   />
                 </div>
               </div>
@@ -625,7 +603,6 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   <tr>
                     <th>Product</th>
                     <th>Stock</th>
-                    <th>Wholesale Price</th>
                     <th>Landed Cost/Unit</th>
                     <th>Expenses</th>
                     <th>Action</th>
@@ -638,7 +615,6 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                       <td>
                         <strong>{batch.quantityRemaining}</strong> / <span style={{ color: 'var(--text-muted)' }}>{batch.quantityInitial}</span>
                       </td>
-                      <td>${batch.sellingPrice.toFixed(2)}</td>
                       <td>
                         <strong className="text-success">${batch.costPerItem.toFixed(2)}</strong>
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Base cost: ${batch.baseCost.toFixed(2)}</p>
@@ -659,7 +635,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   ))}
                   {batches.length === 0 && (
                     <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                      <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                         No stock batches recorded. Fill form on left.
                       </td>
                     </tr>

@@ -26,7 +26,7 @@ export interface ProductDto {
   description?: string;
   imageUrl?: string;
   standardPrice: number;
-  minPrice: number;
+  wholesalePrice: number;
   totalStock: number;
 }
 
@@ -36,7 +36,7 @@ export interface CreateProductRequest {
   description?: string;
   imageUrl?: string;
   standardPrice: number;
-  minPrice: number;
+  wholesalePrice: number;
 }
 
 export interface CustomerDto {
@@ -62,10 +62,8 @@ export interface CreateStockBatchRequest {
   productId: number;
   quantity: number;
   baseCost: number;
-  sellingPrice: number;
   expenses: ExpenseItemDto[];
   standardPrice: number;
-  minPrice: number;
 }
 
 export interface StockBatchDto {

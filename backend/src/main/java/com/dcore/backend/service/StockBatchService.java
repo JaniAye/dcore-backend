@@ -37,7 +37,8 @@ public class StockBatchService {
                                 .quantityInitial(request.getQuantity())
                                 .quantityRemaining(request.getQuantity())
                                 .baseCost(request.getBaseCost())
-                                .sellingPrice(request.getSellingPrice())
+                                .sellingPrice(product.getWholesalePrice() != null ? product.getWholesalePrice()
+                                                : BigDecimal.ZERO)
                                 .createdAt(LocalDateTime.now())
                                 .build();
 
@@ -57,9 +58,6 @@ public class StockBatchService {
                 if (request.getStandardPrice() != null) {
             product.setStandardPrice(request.getStandardPrice());
         }
-                if (request.getMinPrice() != null) {
-                        product.setMinPrice(request.getMinPrice());
-                }
                 productRepository.save(product);
 
                 return mapToDto(savedBatch);
@@ -117,7 +115,7 @@ public class StockBatchService {
                                 .lastBaseCost(lastBaseCost)
                                 .lastExpenses(lastExpenses)
                                 .standardPrice(product.getStandardPrice())
-                                .minPrice(product.getMinPrice())
+                                .wholesalePrice(product.getWholesalePrice())
                                 .build();
         }
 

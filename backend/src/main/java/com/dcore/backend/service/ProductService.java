@@ -30,7 +30,8 @@ public class ProductService {
                 .imageUrl(request.getImageUrl())
                 .standardPrice(
                         request.getStandardPrice() != null ? request.getStandardPrice() : java.math.BigDecimal.ZERO)
-                .minPrice(request.getMinPrice() != null ? request.getMinPrice() : java.math.BigDecimal.ZERO)
+                .wholesalePrice(request.getWholesalePrice() != null ? request.getWholesalePrice()
+                    : java.math.BigDecimal.ZERO)
                 .build();
 
         return mapToDto(productRepository.save(product));
@@ -90,7 +91,7 @@ public class ProductService {
                 .description(product.getDescription())
                 .imageUrl(product.getImageUrl())
                 .standardPrice(product.getStandardPrice())
-                .minPrice(product.getMinPrice())
+                .wholesalePrice(product.getWholesalePrice())
                 .totalStock(totalStock)
                 .build();
     }
