@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { ProductDto, CustomerDto, SaleItemRequest, DiscountLevel, SalePaymentMethod, SaleDto, StockBatchDto } from '../types';
-import { Search, Plus, X, ShoppingCart, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Minus, X, ShoppingCart, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
 
 export const POS: React.FC = () => {
   // Data lists
@@ -14,10 +14,9 @@ export const POS: React.FC = () => {
   interface CartItem {
     product: ProductDto;
     quantity: number;
-    basePrice: number; // Product retail or wholesale default
+    originalPrice: number;
+    salePrice: number;
     useWholesale: boolean;
-    discountType: 'NONE' | 'PERCENTAGE' | 'FIXED';
-    discountValue: number;
   }
   const [cart, setCart] = useState<CartItem[]>([]);
   
@@ -111,9 +110,15 @@ export const POS: React.FC = () => {
     }
   };
 
-  // Wholesale is a product default; batches only determine FIFO cost.
   const getProductWholesalePrice = (product: ProductDto): number => {
     return product.wholesalePrice || product.standardPrice;
+  };
+
+  const getProductCost = (productId: number): number => {
+    const firstAvailableBatch = batches
+      .filter(batch => batch.productId === productId && batch.quantityRemaining > 0)
+      .sort((first, second) => first.id - second.id)[0];
+    return firstAvailableBatch?.costPerItem || 0;
   };
 
   // Add item to cart
@@ -136,10 +141,9 @@ export const POS: React.FC = () => {
       setCart([...cart, {
         product,
         quantity: 1,
-        basePrice: product.standardPrice,
+        originalPrice: product.standardPrice,
+        salePrice: product.standardPrice,
         useWholesale: false,
-        discountType: 'NONE',
-        discountValue: 0
       }]);
     }
   };
@@ -166,24 +170,14 @@ export const POS: React.FC = () => {
   };
 
   // Calculations
-  const calculateItemOverridePrice = (item: CartItem): number => {
-    if (isInternal) return 0;
-    
-    let price = item.basePrice;
-    if (item.discountType === 'PERCENTAGE') {
-      price = price * (1 - item.discountValue / 100);
-    } else if (item.discountType === 'FIXED') {
-      price = price - item.discountValue;
-    }
-    return Math.max(0, price);
-  };
+  const calculateItemOverridePrice = (item: CartItem): number => isInternal ? 0 : Math.max(0, item.salePrice);
 
   const getCartTotals = () => {
     let subtotal = 0;
     let discount = 0;
     
     cart.forEach(item => {
-      const originalItemTotal = item.basePrice * item.quantity;
+      const originalItemTotal = item.originalPrice * item.quantity;
       const finalItemPrice = calculateItemOverridePrice(item);
       const finalItemTotal = finalItemPrice * item.quantity;
       
@@ -388,6 +382,13 @@ export const POS: React.FC = () => {
               {cart.map((item, index) => {
                 const finalUnitPrice = calculateItemOverridePrice(item);
                 const itemTotal = finalUnitPrice * item.quantity;
+                const itemDiscount = Math.max(0, item.originalPrice - item.salePrice);
+                const wholesalePrice = getProductWholesalePrice(item.product);
+                const itemCost = getProductCost(item.product.id);
+                const isWholesalePriceOnRetail = !item.useWholesale
+                  && item.product.wholesalePrice > 0
+                  && item.salePrice === wholesalePrice;
+                const isBelowCost = itemCost > 0 && item.salePrice <= itemCost;
                 return (
                   <div key={item.product.id} className="pos-cart-item">
                     <div>
@@ -400,77 +401,88 @@ export const POS: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Pricing mode: Retail vs Wholesale */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <select 
-                        className="form-select" 
-                        style={{ padding: '0.25rem', fontSize: '0.75rem' }}
-                        value={item.useWholesale ? 'wholesale' : 'retail'}
-                        onChange={(e) => {
-                          const isWholesale = e.target.value === 'wholesale';
-                          const defaultPrice = isWholesale 
-                            ? getProductWholesalePrice(item.product)
-                            : item.product.standardPrice;
-                          updateCartItem(index, { useWholesale: isWholesale, basePrice: defaultPrice });
-                        }}
-                      >
-                        <option value="retail">Retail</option>
-                        <option value="wholesale">Wholesale</option>
-                      </select>
-                      <input 
-                        type="number" 
-                        className="form-input" 
-                        style={{ padding: '0.25rem', width: '70px', fontSize: '0.75rem' }}
-                        value={item.basePrice}
-                        onChange={(e) => updateCartItem(index, { basePrice: parseFloat(e.target.value) || 0 })}
-                        title="Override base unit price"
+                    <div className="pos-cart-controls">
+                      <div className="pos-cart-mode-quantity">
+                        <div className="pos-price-modes" role="group" aria-label="Price type">
+                          <label>
+                            <input
+                              type="radio"
+                              name={`price-mode-${item.product.id}`}
+                              checked={!item.useWholesale}
+                              onChange={() => updateCartItem(index, {
+                                useWholesale: false,
+                                originalPrice: item.product.standardPrice,
+                                salePrice: item.product.standardPrice
+                              })}
+                            />
+                            Retail
+                          </label>
+                          <label>
+                            <input
+                              type="radio"
+                              name={`price-mode-${item.product.id}`}
+                              checked={item.useWholesale}
+                              onChange={() => {
+                                const wholesalePrice = getProductWholesalePrice(item.product);
+                                updateCartItem(index, {
+                                  useWholesale: true,
+                                  originalPrice: wholesalePrice,
+                                  salePrice: wholesalePrice
+                                });
+                              }}
+                            />
+                            Wholesale
+                          </label>
+                        </div>
+                        <div className="pos-quantity-control">
+                          <span className="pos-control-label">Qty</span>
+                          <button
+                            type="button"
+                            aria-label="Decrease quantity"
+                            disabled={item.quantity <= 1}
+                            onClick={() => updateCartItem(index, { quantity: item.quantity - 1 })}
+                          >
+                            <Minus size={13} />
+                          </button>
+                          <span>{item.quantity}</span>
+                          <button
+                            type="button"
+                            aria-label="Increase quantity"
+                            disabled={item.quantity >= item.product.totalStock}
+                            onClick={() => updateCartItem(index, { quantity: item.quantity + 1 })}
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
+                      </div>
+                      <label className="pos-control-label" htmlFor={`item-price-${item.product.id}`}>Item price</label>
+                      <input
+                        id={`item-price-${item.product.id}`}
+                        type="number"
+                        className="form-input"
+                        style={{ borderColor: isBelowCost ? 'var(--accent-danger)' : isWholesalePriceOnRetail ? '#eab308' : undefined,
+                          background: isBelowCost ? 'rgba(239, 68, 68, 0.1)' : isWholesalePriceOnRetail ? 'rgba(234, 179, 8, 0.12)' : undefined }}
+                        value={item.salePrice}
+                        min="0"
+                        onChange={(e) => updateCartItem(index, { salePrice: parseFloat(e.target.value) || 0 })}
                       />
-                    </div>
-
-                    {/* Quantity & Discount */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Qty:</span>
-                        <input 
-                          type="number" 
-                          className="form-input" 
-                          style={{ padding: '0.25rem 0.5rem', width: '50px', fontSize: '0.75rem' }} 
-                          value={item.quantity}
-                          min="1"
-                          max={item.product.totalStock}
-                          onChange={(e) => updateCartItem(index, { quantity: parseInt(e.target.value) || 1 })}
-                        />
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                        <select 
-                          className="form-select" 
-                          style={{ padding: '0.15rem', fontSize: '0.7rem' }}
-                          value={item.discountType}
-                          onChange={(e) => updateCartItem(index, { discountType: e.target.value as any, discountValue: 0 })}
-                        >
-                          <option value="NONE">Disc: None</option>
-                          <option value="PERCENTAGE">%</option>
-                          <option value="FIXED">$</option>
-                        </select>
-                        {item.discountType !== 'NONE' && (
-                          <input 
-                            type="number" 
-                            className="form-input" 
-                            style={{ padding: '0.15rem', width: '45px', fontSize: '0.7rem' }}
-                            value={item.discountValue}
-                            onChange={(e) => updateCartItem(index, { discountValue: parseFloat(e.target.value) || 0 })}
-                          />
-                        )}
-                      </div>
+                      <span className={`pos-discount ${itemDiscount > 0 ? 'is-discounted' : ''}`}>
+                        Discount: ${itemDiscount.toFixed(2)}
+                      </span>
+                      {isWholesalePriceOnRetail && !isBelowCost && (
+                        <span className="pos-price-warning is-wholesale">Wholesale price</span>
+                      )}
+                      {isBelowCost && (
+                        <span className="pos-price-warning">At/below cost</span>
+                      )}
                     </div>
 
                     {/* Totals & delete */}
                     <div className="text-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                       <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>${itemTotal.toFixed(2)}</span>
-                      {item.basePrice !== finalUnitPrice && (
+                      {item.originalPrice !== finalUnitPrice && (
                         <span style={{ fontSize: '0.7rem', textDecoration: 'line-through', color: 'var(--text-muted)' }}>
-                          ${(item.basePrice * item.quantity).toFixed(2)}
+                          ${(item.originalPrice * item.quantity).toFixed(2)}
                         </span>
                       )}
                       <button onClick={() => removeFromCart(index)} className="mt-4" style={{
