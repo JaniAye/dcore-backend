@@ -14,6 +14,8 @@ public class DatabaseMigration {
     @PostConstruct
     public void migratePricingColumns() {
         jdbcTemplate.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(19, 2)");
+        jdbcTemplate.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE");
+        jdbcTemplate.execute("UPDATE products SET active = TRUE WHERE active IS NULL");
         jdbcTemplate.execute("UPDATE products p SET wholesale_price = latest.selling_price "
                 + "FROM (SELECT DISTINCT ON (product_id) product_id, selling_price "
                 + "FROM stock_batches ORDER BY product_id, created_at DESC) latest "
