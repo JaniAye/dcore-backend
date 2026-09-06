@@ -13,6 +13,7 @@ import com.dcore.backend.repository.ProductRepository;
 import com.dcore.backend.repository.StockBatchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -22,6 +23,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class StockBatchService {
 
         private final StockBatchRepository stockBatchRepository;
@@ -61,6 +63,32 @@ public class StockBatchService {
                 productRepository.save(product);
 
                 return mapToDto(savedBatch);
+        }
+
+        public StockBatchDto updateStockBatch(Long id, CreateStockBatchRequest request) {
+                StockBatch batch = stockBatchRepository.findById(id)
+                                .orElseThrow(() -> new RuntimeException("Batch not found"));
+                Product product = productRepository.findById(request.getProductId())
+                                .orElseThrow(() -> new RuntimeException("Product not found"));
+                int initialQuantity = request.getQuantity();
+                int soldQuantity = batch.getQuantityInitial() - batch.getQuantityRemaining();
+                int remainingQuantity = request.getQuantityRemaining() != null
+                                ? request.getQuantityRemaining()
+                                : initialQuantity - soldQuantity;
+                if (initialQuantity < 0 || remainingQuantity < 0 || remainingQuantity > initialQuantity
+                                || initialQuantity - remainingQuantity < soldQuantity) {
+                        throw new IllegalArgumentException("Remaining stock cannot be greater than initial stock or reduce sold stock.");
+                }
+                batch.setProduct(product);
+                batch.setQuantityInitial(initialQuantity);
+                batch.setQuantityRemaining(remainingQuantity);
+                batch.setBaseCost(request.getBaseCost());
+                batch.setSellingPrice(product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO);
+                if (request.getStandardPrice() != null) {
+                        product.setStandardPrice(request.getStandardPrice());
+                        productRepository.save(product);
+                }
+                return mapToDto(stockBatchRepository.save(batch));
         }
 
         public BatchExpenseDto addExpenseToBatch(AddBatchExpenseRequest request) {

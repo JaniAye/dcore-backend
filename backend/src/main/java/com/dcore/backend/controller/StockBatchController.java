@@ -28,6 +28,11 @@ public class StockBatchController {
         return stockBatchService.addExpenseToBatch(request);
     }
 
+    @PutMapping("/{id}")
+    public StockBatchDto updateStockBatch(@PathVariable Long id, @RequestBody CreateStockBatchRequest request) {
+        return stockBatchService.updateStockBatch(id, request);
+    }
+
     @GetMapping
     public List<StockBatchDto> getAllBatches() {
         return stockBatchService.getAllBatches();

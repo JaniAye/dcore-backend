@@ -8,6 +8,7 @@ import java.util.List;
 public class CreateStockBatchRequest {
     private Long productId;
     private Integer quantity;
+    private Integer quantityRemaining;
     private BigDecimal baseCost;
     private List<CreateStockBatchRequest.ExpenseItemDto> expenses;
     private BigDecimal standardPrice;

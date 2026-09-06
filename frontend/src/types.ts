@@ -63,6 +63,7 @@ export interface ExpenseItemDto {
 export interface CreateStockBatchRequest {
   productId: number;
   quantity: number;
+  quantityRemaining?: number;
   baseCost: number;
   expenses: ExpenseItemDto[];
   standardPrice: number;

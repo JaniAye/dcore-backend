@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../services/api';
+import { api, getImageUrl } from '../services/api';
 import { ProductDto, Category, StockBatchDto, ExpenseItemDto } from '../types';
 import { Plus, List, Tag, Layers, FileImage, Search, Pencil, Trash2, X } from 'lucide-react';
 
@@ -23,6 +23,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [prodName, setProdName] = useState('');
   const [prodDesc, setProdDesc] = useState('');
   const [prodImageFile, setProdImageFile] = useState<File | null>(null);
+  const [prodImagePreview, setProdImagePreview] = useState('');
   const [prodStandardPrice, setProdStandardPrice] = useState('');
   const [prodWholesalePrice, setProdWholesalePrice] = useState('');
   const [showProductForm, setShowProductForm] = useState(false);
@@ -47,6 +48,14 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
   const [addExpenseDesc, setAddExpenseDesc] = useState('');
   const [addExpenseAmount, setAddExpenseAmount] = useState('');
+
+  const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+  const [editingBatchId, setEditingBatchId] = useState<number | null>(null);
+  const [editBatchProductId, setEditBatchProductId] = useState('');
+  const [editBatchQuantity, setEditBatchQuantity] = useState('');
+  const [editBatchRemaining, setEditBatchRemaining] = useState('');
+  const [editBatchBaseCost, setEditBatchBaseCost] = useState('');
+  const [editBatchStandardPrice, setEditBatchStandardPrice] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -83,6 +92,13 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   useEffect(() => {
     loadAllData();
   }, []);
+
+  useEffect(() => {
+    if (!prodImageFile) return;
+    const previewUrl = URL.createObjectURL(prodImageFile);
+    setProdImagePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [prodImageFile]);
 
   useEffect(() => {
     if (requestedStockFilter) {
@@ -132,6 +148,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
       setProdName('');
       setProdDesc('');
       setProdImageFile(null);
+      setProdImagePreview('');
       setProdStandardPrice('');
       setProdWholesalePrice('');
       setEditingProductId(null);
@@ -157,8 +174,10 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
     setProdStandardPrice(String(product.standardPrice || ''));
     setProdWholesalePrice(String(product.wholesalePrice || ''));
     setEditingProductImageUrl(product.imageUrl || '');
+    setProdImagePreview(getImageUrl(product.imageUrl));
     setEditingProductActive(product.active !== false);
     setProdImageFile(null);
+    setProdImagePreview('');
     setShowProductForm(true);
     setError('');
     setSuccess('');
@@ -295,6 +314,44 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
       loadAllData();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to add batch expense');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditingBatch = (batch: StockBatchDto) => {
+    setEditingBatchId(batch.id);
+    setEditBatchProductId(String(batch.productId));
+    setEditBatchQuantity(String(batch.quantityInitial));
+    setEditBatchRemaining(String(batch.quantityRemaining));
+    setEditBatchBaseCost(String(batch.baseCost));
+    const product = products.find(item => item.id === batch.productId);
+    setEditBatchStandardPrice(String(product?.standardPrice || ''));
+    setShowBatchEditModal(true);
+    setError('');
+    setSuccess('');
+  };
+
+  const handleEditBatchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBatchId || !editBatchProductId || !editBatchQuantity || !editBatchRemaining || !editBatchBaseCost) return;
+    setLoading(true);
+    setError('');
+    try {
+      await api.batches.update(editingBatchId, {
+        productId: parseInt(editBatchProductId),
+        quantity: parseInt(editBatchQuantity),
+        quantityRemaining: parseInt(editBatchRemaining),
+        baseCost: parseFloat(editBatchBaseCost),
+        expenses: [],
+        standardPrice: editBatchStandardPrice ? parseFloat(editBatchStandardPrice) : 0
+      });
+      setShowBatchEditModal(false);
+      setEditingBatchId(null);
+      setSuccess('Stock batch updated successfully!');
+      await loadAllData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Failed to update stock batch');
     } finally {
       setLoading(false);
     }
@@ -437,6 +494,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                     {prodImageFile ? prodImageFile.name : 'No file chosen'}
                   </span>
                 </div>
+                {prodImagePreview && (
+                  <img src={prodImagePreview} alt="Product preview" style={{ marginTop: '0.75rem', width: '96px', height: '96px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-glass)' }} />
+                )}
               </div>
 
               <div className="form-row">
@@ -525,7 +585,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                       <td><code style={{ color: 'var(--accent-primary)', fontWeight: 700 }}>{product.itemCode}</code></td>
                       <td>
                         {product.imageUrl ? (
-                          <img src={product.imageUrl} alt={product.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
+                          <img src={getImageUrl(product.imageUrl)} alt={product.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
                         ) : (
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>None</span>
                         )}
@@ -729,6 +789,15 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                         >
                           + Add Expense
                         </button>
+                          <button
+                            type="button"
+                            onClick={() => startEditingBatch(batch)}
+                            className="btn btn-secondary"
+                            title="Edit stock batch"
+                            style={{ padding: '0.25rem 0.5rem' }}
+                          >
+                            <Pencil size={13} /> Edit
+                          </button>
                       </td>
                     </tr>
                     );
@@ -845,6 +914,48 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                 >
                   Cancel
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showBatchEditModal && (
+        <div className="modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) setShowBatchEditModal(false); }}>
+          <div className="glass-panel modal-container">
+            <h2 style={{ marginBottom: '1.5rem' }}>Edit Stock Batch</h2>
+            <form onSubmit={handleEditBatchSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Product</label>
+                <select className="form-select" value={editBatchProductId} onChange={(event) => setEditBatchProductId(event.target.value)} required>
+                  {products.filter(product => product.active || String(product.id) === editBatchProductId).map(product => (
+                    <option key={product.id} value={product.id}>{product.name} ({product.itemCode})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Initial Quantity</label>
+                  <input type="number" min="0" className="form-input" value={editBatchQuantity} onChange={(event) => setEditBatchQuantity(event.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Remaining Quantity</label>
+                  <input type="number" min="0" className="form-input" value={editBatchRemaining} onChange={(event) => setEditBatchRemaining(event.target.value)} required />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Base Cost / Unit ($)</label>
+                  <input type="number" min="0" step="0.01" className="form-input" value={editBatchBaseCost} onChange={(event) => setEditBatchBaseCost(event.target.value)} required />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Standard Retail ($)</label>
+                  <input type="number" min="0" step="0.01" className="form-input" value={editBatchStandardPrice} onChange={(event) => setEditBatchStandardPrice(event.target.value)} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>{loading ? 'Updating batch...' : 'Update Batch'}</button>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowBatchEditModal(false)}>Cancel</button>
               </div>
             </form>
           </div>

@@ -22,6 +22,12 @@ import {
 
 const API_BASE = '/api';
 
+export const getImageUrl = (imageUrl?: string): string => {
+  if (!imageUrl) return '';
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) return imageUrl;
+  return imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
+};
+
 const compressImage = (file: File): Promise<File> => {
   if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
     return Promise.resolve(file);
@@ -211,6 +217,10 @@ export const api = {
     },
     create: async (data: CreateStockBatchRequest): Promise<StockBatchDto> => {
       const res = await client.post('/batches', data);
+      return res.data;
+    },
+    update: async (id: number, data: CreateStockBatchRequest): Promise<StockBatchDto> => {
+      const res = await client.put(`/batches/${id}`, data);
       return res.data;
     },
     addExpense: async (data: AddBatchExpenseRequest): Promise<any> => {
