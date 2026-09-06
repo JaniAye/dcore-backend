@@ -28,6 +28,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [editingProductImageUrl, setEditingProductImageUrl] = useState('');
+  const [editingProductActive, setEditingProductActive] = useState(true);
   
   // Create Category states
   const [catName, setCatName] = useState('');
@@ -62,9 +63,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
 
   const normalizedProductName = prodName.trim().toLowerCase();
   const similarProducts = normalizedProductName
-    ? products.filter(product => product.name.toLowerCase().includes(normalizedProductName) && product.id !== editingProductId)
+    ? products.filter(product => product.name.toLowerCase().includes(normalizedProductName) && product.id !== editingProductId).slice(0, 5)
     : [];
-  const duplicateProduct = products.find(product => product.name.trim().toLowerCase() === normalizedProductName && product.id !== editingProductId);
+  const duplicateProduct = products.find(product => product.active && product.name.trim().toLowerCase() === normalizedProductName && product.id !== editingProductId);
 
   const loadAllData = async () => {
     try {
@@ -117,6 +118,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
         name: prodName.trim(),
         description: prodDesc || undefined,
         imageUrl: imageUrl || editingProductImageUrl || undefined,
+        active: editingProductId === null ? true : editingProductActive,
         standardPrice: prodStandardPrice ? parseFloat(prodStandardPrice) : 0,
         wholesalePrice: prodWholesalePrice ? parseFloat(prodWholesalePrice) : 0
       };
@@ -134,6 +136,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
       setProdWholesalePrice('');
       setEditingProductId(null);
       setEditingProductImageUrl('');
+      setEditingProductActive(true);
       
       const fileInput = document.getElementById('prod-img-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
@@ -154,6 +157,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
     setProdStandardPrice(String(product.standardPrice || ''));
     setProdWholesalePrice(String(product.wholesalePrice || ''));
     setEditingProductImageUrl(product.imageUrl || '');
+    setEditingProductActive(product.active !== false);
     setProdImageFile(null);
     setShowProductForm(true);
     setError('');
@@ -163,6 +167,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const cancelProductEdit = () => {
     setEditingProductId(null);
     setEditingProductImageUrl('');
+    setEditingProductActive(true);
     setProdName('');
     setProdDesc('');
     setProdImageFile(null);
@@ -172,12 +177,20 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   };
 
   const handleDeleteProduct = async (product: ProductDto) => {
-    if (!window.confirm(`Delete product "${product.name}"?`)) return;
+    if (!window.confirm(`Deactivate product "${product.name}"?`)) return;
     setLoading(true);
     setError('');
     try {
-      await api.products.delete(product.id);
-      setSuccess('Product deleted successfully!');
+      await api.products.update(product.id, {
+        itemCode: product.itemCode,
+        name: product.name,
+        description: product.description,
+        imageUrl: product.imageUrl,
+        standardPrice: product.standardPrice,
+        wholesalePrice: product.wholesalePrice,
+        active: false
+      });
+      setSuccess('Product deactivated successfully!');
       if (editingProductId === product.id) cancelProductEdit();
       await loadAllData();
     } catch (err: any) {
@@ -367,7 +380,8 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
             </button>
           </div>
           {/* Register Form */}
-          {showProductForm && <div className="glass-panel" style={{ maxWidth: '700px', width: '100%', margin: '0 auto' }}>
+          {showProductForm && <div className="modal-overlay" onClick={(event) => { if (event.target === event.currentTarget) cancelProductEdit(); }}>
+          <div className="glass-panel modal-container" style={{ maxWidth: '700px', width: '100%' }}>
             <h3 style={{ marginBottom: '1.5rem' }}>{editingProductId === null ? 'Register New Product' : 'Edit Product'}</h3>
             <form onSubmit={handleCreateProduct} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
@@ -448,10 +462,18 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                 </div>
               </div>
 
+              {editingProductId !== null && (
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: editingProductActive ? 'var(--accent-success)' : 'var(--accent-danger)' }}>
+                  <input type="checkbox" checked={editingProductActive} onChange={(event) => setEditingProductActive(event.target.checked)} />
+                  {editingProductActive ? 'Active product' : 'Inactive product - reactivate'}
+                </label>
+              )}
+
               <button type="submit" className="btn btn-primary w-full mt-4" disabled={loading}>
                 {loading ? (editingProductId === null ? 'Registering product...' : 'Updating product...') : (editingProductId === null ? 'Register Product' : 'Update Product')}
               </button>
             </form>
+          </div>
           </div>}
 
           {/* List panel */}
@@ -499,7 +521,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                 </thead>
                 <tbody>
                   {filteredProducts.map(product => (
-                    <tr key={product.id}>
+                    <tr key={product.id} style={!product.active ? { color: 'var(--accent-danger)' } : undefined}>
                       <td><code style={{ color: 'var(--accent-primary)', fontWeight: 700 }}>{product.itemCode}</code></td>
                       <td>
                         {product.imageUrl ? (
@@ -509,7 +531,8 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                         )}
                       </td>
                       <td>
-                        <strong>{product.name}</strong>
+                        <strong style={!product.active ? { color: 'var(--accent-danger)' } : undefined}>{product.name}</strong>
+                        {!product.active && <span style={{ display: 'block', color: 'var(--accent-danger)', fontSize: '0.7rem' }}>INACTIVE</span>}
                         {product.description && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{product.description}</p>}
                       </td>
                       <td>
@@ -532,7 +555,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                       <td>
                         <div style={{ display: 'flex', gap: '0.4rem' }}>
                           <button type="button" className="btn btn-secondary" title="Edit product" onClick={() => startEditingProduct(product)} style={{ padding: '0.35rem' }}><Pencil size={14} /></button>
-                          <button type="button" className="btn btn-secondary" title="Delete product" onClick={() => handleDeleteProduct(product)} disabled={loading} style={{ padding: '0.35rem', color: 'var(--accent-danger)' }}><Trash2 size={14} /></button>
+                          {product.active && <button type="button" className="btn btn-secondary" title="Deactivate product" onClick={() => handleDeleteProduct(product)} disabled={loading} style={{ padding: '0.35rem', color: 'var(--accent-danger)' }}><Trash2 size={14} /></button>}
                         </div>
                       </td>
                     </tr>
@@ -569,14 +592,14 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   onChange={(e) => {
                     const query = e.target.value;
                     setBatchProductQuery(query);
-                    const selected = products.find(p => `${p.name} (${p.itemCode})` === query);
+                    const selected = products.find(p => p.active && `${p.name} (${p.itemCode})` === query);
                     setBatchProductId(selected ? String(selected.id) : '');
                   }}
                   list="batch-product-options"
                   required
                 />
                 <datalist id="batch-product-options">
-                  {products.map(p => (
+                  {products.filter(p => p.active).map(p => (
                     <option key={p.id} value={`${p.name} (${p.itemCode})`} />
                   ))}
                 </datalist>
@@ -682,9 +705,12 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   </tr>
                 </thead>
                 <tbody>
-                  {batches.map(batch => (
-                    <tr key={batch.id}>
-                      <td><strong>{batch.productName}</strong></td>
+                  {batches.map(batch => {
+                    const batchProduct = products.find(product => product.id === batch.productId);
+                    const isInactive = batchProduct?.active === false;
+                    return (
+                    <tr key={batch.id} style={isInactive ? { color: 'var(--accent-danger)' } : undefined}>
+                      <td><strong style={isInactive ? { color: 'var(--accent-danger)' } : undefined}>{batch.productName}</strong>{isInactive && <span style={{ display: 'block', color: 'var(--accent-danger)', fontSize: '0.7rem' }}>INACTIVE PRODUCT</span>}</td>
                       <td>
                         <strong>{batch.quantityRemaining}</strong> / <span style={{ color: 'var(--text-muted)' }}>{batch.quantityInitial}</span>
                       </td>
@@ -705,7 +731,8 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {batches.length === 0 && (
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>

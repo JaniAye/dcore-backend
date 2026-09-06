@@ -57,7 +57,7 @@ export const DeliveryOrders: React.FC = () => {
       const o = await api.deliveryOrders.getAll();
       setOrders(o);
       const p = await api.products.getAll();
-      setProducts(p);
+      setProducts(p.filter(product => product.active !== false));
     } catch (err) {
       console.error(err);
     }
@@ -78,11 +78,11 @@ export const DeliveryOrders: React.FC = () => {
 
     try {
       const results = await api.products.search(query);
-      setFilteredProducts(results);
+      setFilteredProducts(results.filter(product => product.active !== false));
     } catch (err) {
       console.error('Product search failed:', err);
       setFilteredProducts(products.filter(p => 
-        p.name.toLowerCase().includes(query.toLowerCase())
+        p.active !== false && p.name.toLowerCase().includes(query.toLowerCase())
       ));
     }
   };

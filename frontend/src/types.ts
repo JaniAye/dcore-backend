@@ -25,6 +25,7 @@ export interface ProductDto {
   name: string;
   description?: string;
   imageUrl?: string;
+  active: boolean;
   standardPrice: number;
   wholesalePrice: number;
   totalStock: number;
@@ -35,6 +36,7 @@ export interface CreateProductRequest {
   name: string;
   description?: string;
   imageUrl?: string;
+  active?: boolean;
   standardPrice: number;
   wholesalePrice: number;
 }

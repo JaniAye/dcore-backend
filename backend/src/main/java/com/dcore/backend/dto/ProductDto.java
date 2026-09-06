@@ -15,6 +15,7 @@ public class ProductDto {
     private String categoryName;
     private String modelsSupported;
     private String imageUrl;
+    private Boolean active;
     private BigDecimal standardPrice;
     private BigDecimal wholesalePrice;
     private Integer totalStock;

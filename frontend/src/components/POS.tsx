@@ -44,7 +44,7 @@ export const POS: React.FC = () => {
   const loadData = async () => {
     try {
       const prodList = await api.products.getAll();
-      setProducts(prodList);
+      setProducts(prodList.filter(product => product.active !== false));
       
       const batchList = await api.batches.getAll();
       setBatches(batchList);

@@ -32,6 +32,10 @@ public class Product {
 
     private String imageUrl;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean active = true;
+
     // Pricing (LKR)
     @Column(nullable = false)
     private BigDecimal standardPrice;

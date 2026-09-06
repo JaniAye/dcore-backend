@@ -23,7 +23,7 @@ public class ProductService {
     private final StockBatchRepository stockBatchRepository;
 
     public ProductDto createProduct(CreateProductRequest request) {
-        if (productRepository.existsByNameIgnoreCase(request.getName())) {
+        if (productRepository.existsByActiveNameIgnoreCase(request.getName())) {
             throw new IllegalArgumentException("A product with this name already exists.");
         }
         Product product = Product.builder()
@@ -31,6 +31,7 @@ public class ProductService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .imageUrl(request.getImageUrl())
+                .active(true)
                 .standardPrice(
                         request.getStandardPrice() != null ? request.getStandardPrice() : java.math.BigDecimal.ZERO)
                 .wholesalePrice(request.getWholesalePrice() != null ? request.getWholesalePrice()
@@ -43,23 +44,25 @@ public class ProductService {
     public ProductDto updateProduct(Long id, CreateProductRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
-        if (productRepository.existsByNameIgnoreCaseAndIdNot(request.getName(), id)) {
+        boolean activating = request.getActive() == null || request.getActive();
+        if (activating && productRepository.existsByActiveNameIgnoreCaseAndIdNot(request.getName(), id)) {
             throw new IllegalArgumentException("A product with this name already exists.");
         }
         product.setItemCode(request.getItemCode());
         product.setName(request.getName());
         product.setDescription(request.getDescription());
         product.setImageUrl(request.getImageUrl());
+        product.setActive(activating);
         product.setStandardPrice(request.getStandardPrice() != null ? request.getStandardPrice() : java.math.BigDecimal.ZERO);
         product.setWholesalePrice(request.getWholesalePrice() != null ? request.getWholesalePrice() : java.math.BigDecimal.ZERO);
         return mapToDto(productRepository.save(product));
     }
 
     public void deleteProduct(Long id) {
-        if (!productRepository.existsById(id)) {
-            throw new RuntimeException("Product not found");
-        }
-        productRepository.deleteById(id);
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        product.setActive(false);
+        productRepository.save(product);
     }
 
     public List<ProductDto> getAllProducts() {
@@ -92,7 +95,7 @@ public class ProductService {
     }
 
     public boolean existsByName(String name) {
-        return productRepository.existsByNameIgnoreCase(name);
+        return productRepository.existsByActiveNameIgnoreCase(name);
     }
 
     public List<ProductDto> searchByName(String query) {
@@ -115,6 +118,7 @@ public class ProductService {
                 .name(product.getName())
                 .description(product.getDescription())
                 .imageUrl(product.getImageUrl())
+                .active(product.getActive() == null || product.getActive())
                 .standardPrice(product.getStandardPrice())
                 .wholesalePrice(product.getWholesalePrice())
                 .totalStock(totalStock)
