@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { ProductDto, Category, StockBatchDto, ExpenseItemDto } from '../types';
-import { Plus, FolderPlus, List, Tag, Layers, FileImage, DollarSign, Search } from 'lucide-react';
+import { Plus, List, Tag, Layers, FileImage, Search, Pencil, Trash2, X } from 'lucide-react';
 
 export type InventoryStockFilter = 'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK' | 'ALMOST_OUT';
 
@@ -26,6 +26,8 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [prodStandardPrice, setProdStandardPrice] = useState('');
   const [prodWholesalePrice, setProdWholesalePrice] = useState('');
   const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [editingProductImageUrl, setEditingProductImageUrl] = useState('');
   
   // Create Category states
   const [catName, setCatName] = useState('');
@@ -58,6 +60,12 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
     return matchesName && matchesStock;
   });
 
+  const normalizedProductName = prodName.trim().toLowerCase();
+  const similarProducts = normalizedProductName
+    ? products.filter(product => product.name.toLowerCase().includes(normalizedProductName) && product.id !== editingProductId)
+    : [];
+  const duplicateProduct = products.find(product => product.name.trim().toLowerCase() === normalizedProductName && product.id !== editingProductId);
+
   const loadAllData = async () => {
     try {
       const p = await api.products.getAll();
@@ -85,18 +93,15 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   // Product Creation
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prodName) return;
+    if (!prodName.trim() || duplicateProduct) return;
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
-      // 1. Generate code from backend
-      const nextCode = await api.products.getNextCode();
+      const nextCode = editingProductId === null ? await api.products.getNextCode() : (products.find(product => product.id === editingProductId)?.itemCode || '');
 
-      // 2. Check if name exists
-      const exists = await api.products.checkExists(prodName);
-      if (exists) {
+      if (editingProductId === null && await api.products.checkExists(prodName.trim())) {
         throw new Error('A product with this name already exists.');
       }
 
@@ -107,21 +112,28 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
       }
 
       // 4. Submit
-      await api.products.create({
+      const productData = {
         itemCode: nextCode,
-        name: prodName,
+        name: prodName.trim(),
         description: prodDesc || undefined,
-        imageUrl: imageUrl || undefined,
+        imageUrl: imageUrl || editingProductImageUrl || undefined,
         standardPrice: prodStandardPrice ? parseFloat(prodStandardPrice) : 0,
         wholesalePrice: prodWholesalePrice ? parseFloat(prodWholesalePrice) : 0
-      });
+      };
+      if (editingProductId === null) {
+        await api.products.create(productData);
+      } else {
+        await api.products.update(editingProductId, productData);
+      }
 
-      setSuccess('Product registered successfully!');
+      setSuccess(editingProductId === null ? 'Product registered successfully!' : 'Product updated successfully!');
       setProdName('');
       setProdDesc('');
       setProdImageFile(null);
       setProdStandardPrice('');
       setProdWholesalePrice('');
+      setEditingProductId(null);
+      setEditingProductImageUrl('');
       
       const fileInput = document.getElementById('prod-img-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
@@ -130,6 +142,46 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
       setShowProductForm(false);
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to register product');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditingProduct = (product: ProductDto) => {
+    setEditingProductId(product.id);
+    setProdName(product.name);
+    setProdDesc(product.description || '');
+    setProdStandardPrice(String(product.standardPrice || ''));
+    setProdWholesalePrice(String(product.wholesalePrice || ''));
+    setEditingProductImageUrl(product.imageUrl || '');
+    setProdImageFile(null);
+    setShowProductForm(true);
+    setError('');
+    setSuccess('');
+  };
+
+  const cancelProductEdit = () => {
+    setEditingProductId(null);
+    setEditingProductImageUrl('');
+    setProdName('');
+    setProdDesc('');
+    setProdImageFile(null);
+    setProdStandardPrice('');
+    setProdWholesalePrice('');
+    setShowProductForm(false);
+  };
+
+  const handleDeleteProduct = async (product: ProductDto) => {
+    if (!window.confirm(`Delete product "${product.name}"?`)) return;
+    setLoading(true);
+    setError('');
+    try {
+      await api.products.delete(product.id);
+      setSuccess('Product deleted successfully!');
+      if (editingProductId === product.id) cancelProductEdit();
+      await loadAllData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Unable to delete this product. It may be used by existing stock or sales.');
     } finally {
       setLoading(false);
     }
@@ -309,14 +361,14 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
             <button
               type="button"
               className="btn btn-primary"
-              onClick={() => { setShowProductForm(current => !current); setError(''); setSuccess(''); }}
+              onClick={() => { if (showProductForm) cancelProductEdit(); else { setShowProductForm(true); setError(''); setSuccess(''); } }}
             >
-              <Plus size={16} /> {showProductForm ? 'Close Product Form' : 'Register New Product'}
+              {showProductForm ? <><X size={16} /> Close Product Form</> : <><Plus size={16} /> Register New Product</>}
             </button>
           </div>
           {/* Register Form */}
           {showProductForm && <div className="glass-panel" style={{ maxWidth: '700px', width: '100%', margin: '0 auto' }}>
-            <h3 style={{ marginBottom: '1.5rem' }}>Register New Product</h3>
+            <h3 style={{ marginBottom: '1.5rem' }}>{editingProductId === null ? 'Register New Product' : 'Edit Product'}</h3>
             <form onSubmit={handleCreateProduct} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
                 <label className="form-label">Product Name</label>
@@ -328,6 +380,20 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   onChange={(e) => setProdName(e.target.value)}
                   required
                 />
+                {similarProducts.length > 0 && (
+                  <div style={{ marginTop: '0.35rem', border: '1px solid rgba(250, 204, 21, 0.35)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                    {similarProducts.map(product => (
+                      <button key={product.id} type="button" onClick={() => startEditingProduct(product)} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', padding: '0.45rem 0.65rem', background: 'rgba(250, 204, 21, 0.12)', color: '#facc15', cursor: 'pointer' }}>
+                        {product.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {duplicateProduct && (
+                  <div style={{ color: '#facc15', fontSize: '0.8rem', marginTop: '0.35rem' }}>
+                    {duplicateProduct.name}
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
@@ -383,7 +449,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
               </div>
 
               <button type="submit" className="btn btn-primary w-full mt-4" disabled={loading}>
-                {loading ? 'Registering product...' : 'Register Product'}
+                {loading ? (editingProductId === null ? 'Registering product...' : 'Updating product...') : (editingProductId === null ? 'Register Product' : 'Update Product')}
               </button>
             </form>
           </div>}
@@ -428,6 +494,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                     <th>Standard (Retail)</th>
                     <th>Wholesale Price</th>
                     <th>Stock Remaining</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -462,11 +529,17 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                           {product.totalStock} units
                         </span>
                       </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <button type="button" className="btn btn-secondary" title="Edit product" onClick={() => startEditingProduct(product)} style={{ padding: '0.35rem' }}><Pencil size={14} /></button>
+                          <button type="button" className="btn btn-secondary" title="Delete product" onClick={() => handleDeleteProduct(product)} disabled={loading} style={{ padding: '0.35rem', color: 'var(--accent-danger)' }}><Trash2 size={14} /></button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {filteredProducts.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                      <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                         {products.length === 0
                           ? 'No products registered. Use form on the left.'
                           : 'No products match the selected filters.'}

@@ -162,6 +162,13 @@ export const api = {
       const res = await client.post('/products', data);
       return res.data;
     },
+    update: async (id: number, data: CreateProductRequest): Promise<ProductDto> => {
+      const res = await client.put(`/products/${id}`, data);
+      return res.data;
+    },
+    delete: async (id: number): Promise<void> => {
+      await client.delete(`/products/${id}`);
+    },
     getNextCode: async (): Promise<string> => {
       const res = await client.get('/products/next-code');
       return res.data;

@@ -23,6 +23,9 @@ public class ProductService {
     private final StockBatchRepository stockBatchRepository;
 
     public ProductDto createProduct(CreateProductRequest request) {
+        if (productRepository.existsByNameIgnoreCase(request.getName())) {
+            throw new IllegalArgumentException("A product with this name already exists.");
+        }
         Product product = Product.builder()
                 .itemCode(request.getItemCode())
                 .name(request.getName())
@@ -35,6 +38,28 @@ public class ProductService {
                 .build();
 
         return mapToDto(productRepository.save(product));
+    }
+
+    public ProductDto updateProduct(Long id, CreateProductRequest request) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+        if (productRepository.existsByNameIgnoreCaseAndIdNot(request.getName(), id)) {
+            throw new IllegalArgumentException("A product with this name already exists.");
+        }
+        product.setItemCode(request.getItemCode());
+        product.setName(request.getName());
+        product.setDescription(request.getDescription());
+        product.setImageUrl(request.getImageUrl());
+        product.setStandardPrice(request.getStandardPrice() != null ? request.getStandardPrice() : java.math.BigDecimal.ZERO);
+        product.setWholesalePrice(request.getWholesalePrice() != null ? request.getWholesalePrice() : java.math.BigDecimal.ZERO);
+        return mapToDto(productRepository.save(product));
+    }
+
+    public void deleteProduct(Long id) {
+        if (!productRepository.existsById(id)) {
+            throw new RuntimeException("Product not found");
+        }
+        productRepository.deleteById(id);
     }
 
     public List<ProductDto> getAllProducts() {
