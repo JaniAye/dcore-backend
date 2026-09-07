@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Search, CalendarDays, Receipt, Eye, X } from 'lucide-react';
 import { api } from '../services/api';
 import { CustomerDto, SaleDto } from '../types';
+import { TableLoader } from './TableLoader';
 
 type FilterRange = 'today' | 'this_week' | 'this_month' | 'this_year' | 'custom';
 
@@ -212,7 +213,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
       <div className="layout-split" style={{ gap: '1rem' }}>
         <div className="glass-panel" style={{ padding: '1rem', width: '100%', maxWidth: '1100px', margin: '0 auto', gridColumn: '1 / -1' }}>
           {loading ? (
-            <div className="text-center" style={{ padding: '2rem', color: 'var(--text-muted)' }}>Loading invoices...</div>
+            <div className="table-container"><table><tbody><TableLoader colSpan={7} label="Loading invoices..." /></tbody></table></div>
           ) : filteredSales.length === 0 ? (
             <div className="text-center" style={{ padding: '2rem', color: 'var(--text-muted)' }}>No invoices found for this filter.</div>
           ) : (

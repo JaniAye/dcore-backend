@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Search, CheckCircle, Eye, X, ArrowRight } from 'lucide-react';
 import { api } from '../services/api';
 import { CustomerDto, PaymentRequest, SaleDto, SalePaymentMethod } from '../types';
+import { TableLoader } from './TableLoader';
 
 interface CustomersProps {
   onOpenCustomerInvoices: (mobile: string, outstandingOnly: boolean) => void;
@@ -15,14 +16,18 @@ export const Customers: React.FC<CustomersProps> = ({ onOpenCustomerInvoices }) 
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>('CASH');
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   const loadCustomers = async () => {
+    setDataLoading(true);
     try {
       setCustomers(await api.customers.getAll());
     } catch (err) {
       setError('Unable to load customers.');
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -109,7 +114,7 @@ export const Customers: React.FC<CustomersProps> = ({ onOpenCustomerInvoices }) 
             <table>
               <thead><tr><th>Name</th><th>Mobile</th><th>Total Spend</th><th>Outstanding</th><th>Action</th></tr></thead>
               <tbody>
-                {filteredCustomers.map(customer => (
+                {dataLoading ? <TableLoader colSpan={5} label="Loading customers..." /> : filteredCustomers.map(customer => (
                   <tr key={customer.id} onClick={() => onOpenCustomerInvoices(customer.mobile, false)} style={{ cursor: 'pointer' }}>
                     <td><strong>{customer.name}</strong></td>
                     <td>{customer.mobile}</td>
@@ -122,7 +127,7 @@ export const Customers: React.FC<CustomersProps> = ({ onOpenCustomerInvoices }) 
                     </td>
                   </tr>
                 ))}
-                {filteredCustomers.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No customers found.</td></tr>}
+                {!dataLoading && filteredCustomers.length === 0 && <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No customers found.</td></tr>}
               </tbody>
             </table>
           </div>

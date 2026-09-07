@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { DeliveryOrderDto, ProductDto, OrderStatus, DeliveryPaymentMethod } from '../types';
 import { Check, ShieldCheck, ChevronLeft, ChevronRight, Trash2, Pencil } from 'lucide-react';
+import { TableLoader } from './TableLoader';
 
 export const DeliveryOrders: React.FC = () => {
   const [orders, setOrders] = useState<DeliveryOrderDto[]>([]);
@@ -36,6 +37,7 @@ export const DeliveryOrders: React.FC = () => {
   const [orderIdFilter, setOrderIdFilter] = useState('');
 
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -53,6 +55,7 @@ export const DeliveryOrders: React.FC = () => {
   });
 
   const loadData = async () => {
+    setDataLoading(true);
     try {
       const o = await api.deliveryOrders.getAll();
       setOrders(o);
@@ -60,6 +63,8 @@ export const DeliveryOrders: React.FC = () => {
       setProducts(p.filter(product => product.active !== false));
     } catch (err) {
       console.error(err);
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -667,7 +672,7 @@ export const DeliveryOrders: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.map(order => (
+                {dataLoading ? <TableLoader colSpan={8} label="Loading delivery orders..." /> : filteredOrders.map(order => (
                   <tr key={order.id}>
                     <td><code>#{order.id}</code></td>
                     <td>
@@ -715,7 +720,7 @@ export const DeliveryOrders: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {filteredOrders.length === 0 && (
+                {!dataLoading && filteredOrders.length === 0 && (
                   <tr>
                     <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                       {orders.length === 0

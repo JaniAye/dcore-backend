@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { MiscExpenseDto } from '../types';
 import { Plus, Trash2, Receipt } from 'lucide-react';
+import { TableLoader } from './TableLoader';
 
 interface ExpensesProps {
   monthFilter?: string;
@@ -17,6 +18,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
   const [filterDescription, setFilterDescription] = useState('');
   
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -30,11 +32,14 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
   });
 
   const loadExpenses = async () => {
+    setDataLoading(true);
     try {
       const expList = await api.miscExpenses.getAll();
       setExpenses(expList);
     } catch (err) {
       console.error(err);
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -213,7 +218,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
                 </tr>
               </thead>
               <tbody>
-                {filteredExpenses.map(expense => (
+                {dataLoading ? <TableLoader colSpan={4} label="Loading expenses..." /> : filteredExpenses.map(expense => (
                   <tr key={expense.id}>
                     <td>
                       {expense.expenseDate
@@ -238,7 +243,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
                     </td>
                   </tr>
                 ))}
-                {filteredExpenses.length === 0 && (
+                {!dataLoading && filteredExpenses.length === 0 && (
                   <tr>
                     <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                       {expenses.length === 0

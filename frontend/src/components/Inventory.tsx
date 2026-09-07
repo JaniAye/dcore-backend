@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api, getImageUrl } from '../services/api';
 import { ProductDto, Category, StockBatchDto, ExpenseItemDto } from '../types';
 import { Plus, List, Tag, Layers, FileImage, Search, Pencil, Trash2, X } from 'lucide-react';
+import { TableLoader } from './TableLoader';
 
 export type InventoryStockFilter = 'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK' | 'ALMOST_OUT';
 
@@ -18,6 +19,8 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [stockFilter, setStockFilter] = useState<InventoryStockFilter>(requestedStockFilter || 'ALL');
   const [categories, setCategories] = useState<Category[]>([]);
   const [batches, setBatches] = useState<StockBatchDto[]>([]);
+  const [batchSearchDraft, setBatchSearchDraft] = useState('');
+  const [batchSearch, setBatchSearch] = useState('');
   
   // Create Product states
   const [prodName, setProdName] = useState('');
@@ -58,6 +61,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [editBatchStandardPrice, setEditBatchStandardPrice] = useState('');
 
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -70,6 +74,11 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
     return matchesName && matchesStock;
   });
 
+  const filteredBatches = batches.filter(batch => {
+    const query = batchSearch.trim().toLowerCase();
+    return !query || batch.productName.toLowerCase().includes(query);
+  });
+
   const normalizedProductName = prodName.trim().toLowerCase();
   const similarProducts = normalizedProductName
     ? products.filter(product => product.name.toLowerCase().includes(normalizedProductName) && product.id !== editingProductId).slice(0, 5)
@@ -77,6 +86,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const duplicateProduct = products.find(product => product.active && product.name.trim().toLowerCase() === normalizedProductName && product.id !== editingProductId);
 
   const loadAllData = async () => {
+    setDataLoading(true);
     try {
       const p = await api.products.getAll();
       setProducts(p);
@@ -86,6 +96,8 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
       setBatches(b);
     } catch (err) {
       console.error(err);
+    } finally {
+      setDataLoading(false);
     }
   };
 
@@ -330,6 +342,26 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
     setShowBatchEditModal(true);
     setError('');
     setSuccess('');
+  };
+
+  const addStockForProduct = async (product: ProductDto) => {
+    setActiveSubTab('batches');
+    setBatchProductId(String(product.id));
+    setBatchProductQuery(`${product.name} (${product.itemCode})`);
+    setBatchQty('');
+    setBatchBaseCost('');
+    setBatchExpenses([]);
+    setProdStandardPrice(String(product.standardPrice || ''));
+    setError('');
+    setSuccess('');
+
+    try {
+      const defaults = await api.batches.getProductDefaults(product.id);
+      setBatchBaseCost(defaults.lastBaseCost ? String(defaults.lastBaseCost) : '');
+      if (defaults.standardPrice) setProdStandardPrice(String(defaults.standardPrice));
+    } catch (err) {
+      console.error('Unable to load product stock defaults:', err);
+    }
   };
 
   const handleEditBatchSubmit = async (e: React.FormEvent) => {
@@ -580,7 +612,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredProducts.map(product => (
+                  {dataLoading ? <TableLoader colSpan={7} label="Loading products..." /> : filteredProducts.map(product => (
                     <tr key={product.id} style={!product.active ? { color: 'var(--accent-danger)' } : undefined}>
                       <td><code style={{ color: 'var(--accent-primary)', fontWeight: 700 }}>{product.itemCode}</code></td>
                       <td>
@@ -614,13 +646,14 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <button type="button" className="btn btn-primary" title={`Add stock for ${product.name}`} aria-label={`Add stock for ${product.name}`} onClick={() => addStockForProduct(product)} style={{ padding: '0.35rem' }}><Plus size={14} /></button>
                           <button type="button" className="btn btn-secondary" title="Edit product" onClick={() => startEditingProduct(product)} style={{ padding: '0.35rem' }}><Pencil size={14} /></button>
                           {product.active && <button type="button" className="btn btn-secondary" title="Deactivate product" onClick={() => handleDeleteProduct(product)} disabled={loading} style={{ padding: '0.35rem', color: 'var(--accent-danger)' }}><Trash2 size={14} /></button>}
                         </div>
                       </td>
                     </tr>
                   ))}
-                  {filteredProducts.length === 0 && (
+                  {!dataLoading && filteredProducts.length === 0 && (
                     <tr>
                       <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                         {products.length === 0
@@ -691,7 +724,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
               </div>
 
               {/* Price default overrides */}
-              <div className="form-row" style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
+              {/* <div className="form-row" style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
                 <span style={{ gridColumn: '1/-1', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>UPDATE DEFAULT PRODUCT PRICES (OPTIONAL)</span>
                 <div className="form-group">
                   <label className="form-label" style={{ fontSize: '0.7rem' }}>Standard Retail ($)</label>
@@ -703,7 +736,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                     onChange={(e) => setProdStandardPrice(e.target.value)}
                   />
                 </div>
-              </div>
+              </div> */}
 
               {/* Batch-specific expenses */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', borderTop: '1px dashed var(--border-glass)', paddingTop: '1rem' }}>
@@ -753,6 +786,20 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
           {/* List panel */}
           <div className="glass-panel">
             <h3 style={{ marginBottom: '1rem' }}>Active Stock Batches</h3>
+            <div className="flex align-center gap-2" style={{ marginBottom: '1rem' }}>
+              <input
+                type="search"
+                className="form-input"
+                placeholder="Search stock batches by product..."
+                value={batchSearchDraft}
+                onChange={(event) => setBatchSearchDraft(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') setBatchSearch(batchSearchDraft); }}
+                style={{ flex: 1 }}
+              />
+              <button type="button" className="btn btn-secondary" onClick={() => setBatchSearch(batchSearchDraft)} title="Search stock batches" aria-label="Search stock batches" style={{ padding: '0.65rem 0.8rem' }}>
+                <Search size={16} />
+              </button>
+            </div>
             <div className="table-container">
               <table>
                 <thead>
@@ -765,7 +812,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   </tr>
                 </thead>
                 <tbody>
-                  {batches.map(batch => {
+                  {dataLoading ? <TableLoader colSpan={5} label="Loading stock batches..." /> : filteredBatches.map(batch => {
                     const batchProduct = products.find(product => product.id === batch.productId);
                     const isInactive = batchProduct?.active === false;
                     return (
@@ -802,10 +849,10 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                     </tr>
                     );
                   })}
-                  {batches.length === 0 && (
+                  {!dataLoading && filteredBatches.length === 0 && (
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
-                        No stock batches recorded. Fill form on left.
+                        {batches.length === 0 ? 'No stock batches recorded. Fill form on left.' : 'No stock batches match your search.'}
                       </td>
                     </tr>
                   )}
@@ -853,13 +900,13 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   </tr>
                 </thead>
                 <tbody>
-                  {categories.map(cat => (
+                  {dataLoading ? <TableLoader colSpan={2} label="Loading categories..." /> : categories.map(cat => (
                     <tr key={cat.id}>
                       <td><code>#{cat.id}</code></td>
                       <td><strong>{cat.name}</strong></td>
                     </tr>
                   ))}
-                  {categories.length === 0 && (
+                  {!dataLoading && categories.length === 0 && (
                     <tr>
                       <td colSpan={2} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                         No categories found. Create one.
