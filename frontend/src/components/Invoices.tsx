@@ -3,6 +3,8 @@ import { Search, CalendarDays, Receipt, Eye, X } from 'lucide-react';
 import { api } from '../services/api';
 import { CustomerDto, SaleDto } from '../types';
 import { TableLoader } from './TableLoader';
+import { Pagination } from './Pagination';
+import { formatCurrency } from '../utils/format';
 
 type FilterRange = 'today' | 'this_week' | 'this_month' | 'this_year' | 'custom';
 
@@ -22,6 +24,8 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
   const [endDate, setEndDate] = useState('');
   const [selectedSale, setSelectedSale] = useState<SaleDto | null>(null);
   const [paymentTypeFilter, setPaymentTypeFilter] = useState(paymentFilter || 'ALL');
+  const [invoicePage, setInvoicePage] = useState(1);
+  const invoicePageSize = 10;
 
   useEffect(() => {
     if (searchFilter !== undefined) setSearchTerm(searchFilter);
@@ -140,6 +144,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
   const selectedSaleDetails = selectedSale
     ? filteredSales.find(sale => sale.id === selectedSale.id) || selectedSale
     : null;
+  const paginatedSales = filteredSales.slice((invoicePage - 1) * invoicePageSize, invoicePage * invoicePageSize);
 
   return (
     <div className="flex-col gap-4">
@@ -231,7 +236,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSales.map(sale => (
+                  {paginatedSales.map(sale => (
                     <tr key={sale.id} onClick={() => setSelectedSale(sale)} style={{ cursor: 'pointer' }}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -247,8 +252,8 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                       </td>
                       <td>{new Date(sale.createdAt).toLocaleString()}</td>
                       <td><span className="badge badge-info">{getPaymentType(sale)}</span></td>
-                      <td>${sale.finalAmount.toFixed(2)}</td>
-                      <td>${sale.discountAmount.toFixed(2)}</td>
+                      <td>{formatCurrency(sale.finalAmount)}</td>
+                      <td>{formatCurrency(sale.discountAmount)}</td>
                       <td>
                         <button className="btn btn-secondary" type="button" onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); }}>
                           <Eye size={14} /> View
@@ -258,6 +263,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                   ))}
                 </tbody>
               </table>
+              <Pagination currentPage={invoicePage} totalItems={filteredSales.length} pageSize={invoicePageSize} onPageChange={setInvoicePage} />
             </div>
           )}
         </div>
@@ -297,10 +303,10 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
               <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 <div className="flex justify-between"><span>Seller</span><strong>{selectedSaleDetails.sellerName}</strong></div>
                 <div className="flex justify-between"><span>Items</span><strong>{selectedSaleDetails.items?.length || 0}</strong></div>
-                <div className="flex justify-between"><span>Total before discount</span><strong>${selectedSaleDetails.totalAmount.toFixed(2)}</strong></div>
-                <div className="flex justify-between"><span>Discount</span><strong className="text-danger">-${selectedSaleDetails.discountAmount.toFixed(2)}</strong></div>
-                <div className="flex justify-between"><span>Final amount</span><strong className="text-accent">${selectedSaleDetails.finalAmount.toFixed(2)}</strong></div>
-                <div className="flex justify-between"><span>Outstanding</span><strong className={selectedSaleDetails.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>${selectedSaleDetails.outstandingBalance.toFixed(2)}</strong></div>
+                <div className="flex justify-between"><span>Total before discount</span><strong>{formatCurrency(selectedSaleDetails.totalAmount)}</strong></div>
+                <div className="flex justify-between"><span>Discount</span><strong className="text-danger">-{formatCurrency(selectedSaleDetails.discountAmount)}</strong></div>
+                <div className="flex justify-between"><span>Final amount</span><strong className="text-accent">{formatCurrency(selectedSaleDetails.finalAmount)}</strong></div>
+                <div className="flex justify-between"><span>Outstanding</span><strong className={selectedSaleDetails.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>{formatCurrency(selectedSaleDetails.outstandingBalance)}</strong></div>
               </div>
 
               <div>
@@ -314,11 +320,11 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                       </div>
                       <div className="flex justify-between" style={{ marginTop: '0.4rem', color: 'var(--text-muted)' }}>
                         <span>Unit price</span>
-                        <span>${(item.unitPrice || 0).toFixed(2)}</span>
+                        <span>{formatCurrency(item.unitPrice)}</span>
                       </div>
                       <div className="flex justify-between" style={{ color: 'var(--text-muted)' }}>
                         <span>Subtotal</span>
-                        <span>${(item.subTotal ?? 0).toFixed(2)}</span>
+                        <span>{formatCurrency(item.subTotal)}</span>
                       </div>
                     </div>
                   ))}

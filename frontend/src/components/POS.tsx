@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { ProductDto, CustomerDto, SaleItemRequest, DiscountLevel, SalePaymentMethod, SaleDto, StockBatchDto } from '../types';
 import { Search, Plus, Minus, X, ShoppingCart, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { formatCurrency } from '../utils/format';
 
 export const POS: React.FC = () => {
   // Data lists
@@ -360,7 +361,7 @@ export const POS: React.FC = () => {
                         <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</strong>
                         <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{product.itemCode} | Stock: {product.totalStock}</span>
                       </span>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: 700 }}>${product.standardPrice.toFixed(2)}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: 700 }}>{formatCurrency(product.standardPrice)}</span>
                     </button>
                   ))}
                 </div>
@@ -467,7 +468,7 @@ export const POS: React.FC = () => {
                         onChange={(e) => updateCartItem(index, { salePrice: parseFloat(e.target.value) || 0 })}
                       />
                       <span className={`pos-discount ${itemDiscount > 0 ? 'is-discounted' : ''}`}>
-                        Discount: ${itemDiscount.toFixed(2)}
+                        Discount: {formatCurrency(itemDiscount)}
                       </span>
                       {isWholesalePriceOnRetail && !isBelowCost && (
                         <span className="pos-price-warning is-wholesale">Wholesale price</span>
@@ -479,10 +480,10 @@ export const POS: React.FC = () => {
 
                     {/* Totals & delete */}
                     <div className="text-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>${itemTotal.toFixed(2)}</span>
+                      <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{formatCurrency(itemTotal)}</span>
                       {item.originalPrice !== finalUnitPrice && (
                         <span style={{ fontSize: '0.7rem', textDecoration: 'line-through', color: 'var(--text-muted)' }}>
-                          ${(item.originalPrice * item.quantity).toFixed(2)}
+                          {formatCurrency(item.originalPrice * item.quantity)}
                         </span>
                       )}
                       <button onClick={() => removeFromCart(index)} className="mt-4" style={{
@@ -505,11 +506,11 @@ export const POS: React.FC = () => {
             <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div className="flex justify-between">
                 <span>Cart Subtotal:</span>
-                <span>${subtotal.toFixed(2)}</span>
+                <span>{formatCurrency(subtotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Discounts applied:</span>
-                <span className="text-danger">-${discount.toFixed(2)}</span>
+                <span className="text-danger">-{formatCurrency(discount)}</span>
               </div>
 
               {/* Discount levels */}
@@ -549,7 +550,7 @@ export const POS: React.FC = () => {
                     checked={isInternal} 
                     onChange={(e) => setIsInternal(e.target.checked)} 
                   />
-                  <span>Mark as Internal Office/Demo Sale (Total: $0)</span>
+                  <span>Mark as Internal Office/Demo Sale (Total: LKR 0.00)</span>
                 </label>
                 {isInternal && (
                   <input 
@@ -565,11 +566,11 @@ export const POS: React.FC = () => {
               {/* Payment details */}
               <div className="form-row" style={{ borderTop: '1px dashed var(--border-glass)', paddingTop: '1rem' }}>
                 <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '0.7rem' }}>Payment Received ($)</label>
+                    <label className="form-label" style={{ fontSize: '0.7rem' }}>Payment Received (LKR)</label>
                   <input 
                     type="number" 
                     className="form-input" 
-                    placeholder={paymentMethod === 'CREDIT' ? 'Optional partial payment' : final.toFixed(2)}
+                    placeholder={paymentMethod === 'CREDIT' ? 'Optional partial payment' : formatCurrency(final)}
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                   />
@@ -591,13 +592,13 @@ export const POS: React.FC = () => {
 
               <div className="flex justify-between align-center mt-4" style={{ fontSize: '1.25rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1rem' }}>
                 <strong>Payable Total:</strong>
-                <strong className="text-accent">${isInternal ? '0.00' : final.toFixed(2)}</strong>
+                <strong className="text-accent">{isInternal ? formatCurrency(0) : formatCurrency(final)}</strong>
               </div>
 
               {!isInternal && enteredPaymentAmount > 0 && (
                 <div className="flex justify-between" style={{ color: paymentDifference >= 0 ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
                   <strong>{paymentDifference >= 0 ? 'Change Due:' : 'Outstanding Balance:'}</strong>
-                  <strong>${Math.abs(paymentDifference).toFixed(2)}</strong>
+                  <strong>{formatCurrency(Math.abs(paymentDifference))}</strong>
                 </div>
               )}
 
@@ -656,7 +657,7 @@ export const POS: React.FC = () => {
                 </div>
                 <div className="text-right">
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Outstanding Balance</span>
-                  <div style={{ color: 'var(--accent-warning)', fontWeight: 700 }}>${customer.outstandingBalance.toFixed(2)}</div>
+                  <div style={{ color: 'var(--accent-warning)', fontWeight: 700 }}>{formatCurrency(customer.outstandingBalance)}</div>
                   <button onClick={() => setCustomer(null)} className="pointer" style={{ background: 'none', border: 'none', color: 'var(--accent-danger)', fontSize: '0.75rem', marginTop: '0.25rem' }}>Clear Selection</button>
                 </div>
               </div>
@@ -679,7 +680,7 @@ export const POS: React.FC = () => {
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{product.itemCode}</span>
                   <span style={{ fontWeight: 600, fontSize: '0.9rem', lineHeight: '1.2' }}>{product.name}</span>
                   <div className="flex justify-between align-center mt-4">
-                    <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>${product.standardPrice.toFixed(2)}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>{formatCurrency(product.standardPrice)}</span>
                     <span className="badge badge-info" style={{ fontSize: '0.7rem' }}>Stock: {product.totalStock}</span>
                   </div>
                 </div>
@@ -717,8 +718,8 @@ export const POS: React.FC = () => {
             </p>
             <div className="glass-card" style={{ textAlign: 'left', marginTop: '1.25rem' }}>
               <div className="flex justify-between"><span>Customer</span><strong>{successSale.customerName || 'Walk-in Cash Customer'}</strong></div>
-              <div className="flex justify-between" style={{ marginTop: '0.65rem' }}><span>Payable Total</span><strong className="text-accent">${successSale.finalAmount.toFixed(2)}</strong></div>
-              <div className="flex justify-between" style={{ marginTop: '0.65rem' }}><span>Outstanding Balance</span><strong className={successSale.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>${successSale.outstandingBalance.toFixed(2)}</strong></div>
+              <div className="flex justify-between" style={{ marginTop: '0.65rem' }}><span>Payable Total</span><strong className="text-accent">{formatCurrency(successSale.finalAmount)}</strong></div>
+              <div className="flex justify-between" style={{ marginTop: '0.65rem' }}><span>Outstanding Balance</span><strong className={successSale.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>{formatCurrency(successSale.outstandingBalance)}</strong></div>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '1rem' }}>This message will close automatically.</p>
             <button onClick={handleNewSale} className="btn btn-primary" style={{ marginTop: '1rem' }}>Start New POS Checkout</button>

@@ -3,6 +3,8 @@ import { api } from '../services/api';
 import { MiscExpenseDto } from '../types';
 import { Plus, Trash2, Receipt } from 'lucide-react';
 import { TableLoader } from './TableLoader';
+import { Pagination } from './Pagination';
+import { formatCurrency } from '../utils/format';
 
 interface ExpensesProps {
   monthFilter?: string;
@@ -21,6 +23,8 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [expensePage, setExpensePage] = useState(1);
+  const expensePageSize = 10;
 
   const filteredExpenses = expenses.filter(expense => {
     const matchesDate = !filterDate || expense.expenseDate === filterDate;
@@ -30,6 +34,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
       || expense.description.toLowerCase().includes(filterDescription.toLowerCase());
     return matchesDate && matchesMonth && matchesDescription;
   });
+  const paginatedExpenses = filteredExpenses.slice((expensePage - 1) * expensePageSize, expensePage * expensePageSize);
 
   const loadExpenses = async () => {
     setDataLoading(true);
@@ -153,7 +158,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
               </datalist>
             </div>
             <div className="form-group">
-              <label className="form-label">Expense Value ($)</label>
+              <label className="form-label">Expense Value (LKR)</label>
               <input 
                 type="number" 
                 className="form-input" 
@@ -218,7 +223,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
                 </tr>
               </thead>
               <tbody>
-                {dataLoading ? <TableLoader colSpan={4} label="Loading expenses..." /> : filteredExpenses.map(expense => (
+                {dataLoading ? <TableLoader colSpan={4} label="Loading expenses..." /> : paginatedExpenses.map(expense => (
                   <tr key={expense.id}>
                     <td>
                       {expense.expenseDate
@@ -229,7 +234,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
                       <strong>{expense.description}</strong>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{expense.category}</p>
                     </td>
-                    <td className="text-danger" style={{ fontWeight: 700 }}>-${expense.amount.toFixed(2)}</td>
+                    <td className="text-danger" style={{ fontWeight: 700 }}>-{formatCurrency(expense.amount)}</td>
                     <td>
                       {expense.id && (
                         <button 
@@ -255,6 +260,7 @@ export const Expenses: React.FC<ExpensesProps> = ({ monthFilter }) => {
               </tbody>
             </table>
           </div>
+          <Pagination currentPage={expensePage} totalItems={filteredExpenses.length} pageSize={expensePageSize} onPageChange={setExpensePage} />
         </div>
       </div>
     </div>

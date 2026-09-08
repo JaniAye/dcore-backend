@@ -3,6 +3,8 @@ import { Search, CheckCircle, Eye, X, ArrowRight } from 'lucide-react';
 import { api } from '../services/api';
 import { CustomerDto, PaymentRequest, SaleDto, SalePaymentMethod } from '../types';
 import { TableLoader } from './TableLoader';
+import { Pagination } from './Pagination';
+import { formatCurrency } from '../utils/format';
 
 interface CustomersProps {
   onOpenCustomerInvoices: (mobile: string, outstandingOnly: boolean) => void;
@@ -19,6 +21,8 @@ export const Customers: React.FC<CustomersProps> = ({ onOpenCustomerInvoices }) 
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [customerPage, setCustomerPage] = useState(1);
+  const customerPageSize = 10;
 
   const loadCustomers = async () => {
     setDataLoading(true);
@@ -39,6 +43,7 @@ export const Customers: React.FC<CustomersProps> = ({ onOpenCustomerInvoices }) 
     const query = searchTerm.trim().toLowerCase();
     return !query || customer.name.toLowerCase().includes(query) || customer.mobile.includes(query);
   });
+  const paginatedCustomers = filteredCustomers.slice((customerPage - 1) * customerPageSize, customerPage * customerPageSize);
 
   const selectCustomer = async (customer: CustomerDto) => {
     setSelectedCustomer(customer);
@@ -108,18 +113,18 @@ export const Customers: React.FC<CustomersProps> = ({ onOpenCustomerInvoices }) 
         <div className="glass-panel" style={{ width: '100%', maxWidth: '1100px', margin: '0 auto' }}>
           <div style={{ position: 'relative', marginBottom: '1rem' }}>
             <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '0.75rem', color: 'var(--text-muted)' }} />
-            <input className="form-input" style={{ paddingLeft: '2.25rem' }} placeholder="Search by name or mobile number..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+            <input className="form-input" style={{ paddingLeft: '2.25rem' }} placeholder="Search by name or mobile number..." value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setCustomerPage(1); }} />
           </div>
           <div className="table-container">
             <table>
               <thead><tr><th>Name</th><th>Mobile</th><th>Total Spend</th><th>Outstanding</th><th>Action</th></tr></thead>
               <tbody>
-                {dataLoading ? <TableLoader colSpan={5} label="Loading customers..." /> : filteredCustomers.map(customer => (
+                {dataLoading ? <TableLoader colSpan={5} label="Loading customers..." /> : paginatedCustomers.map(customer => (
                   <tr key={customer.id} onClick={() => onOpenCustomerInvoices(customer.mobile, false)} style={{ cursor: 'pointer' }}>
                     <td><strong>{customer.name}</strong></td>
                     <td>{customer.mobile}</td>
-                    <td>${customer.totalSpend.toFixed(2)}</td>
-                    <td className={customer.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>${customer.outstandingBalance.toFixed(2)}</td>
+                    <td>{formatCurrency(customer.totalSpend)}</td>
+                    <td className={customer.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>{formatCurrency(customer.outstandingBalance)}</td>
                     <td>
                       <button type="button" className="btn btn-secondary" onClick={(event) => { event.stopPropagation(); openOutstandingPopup(customer); }} title="Check outstanding balance" aria-label="Check outstanding balance" style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                         <Eye size={13} /> Check
@@ -131,6 +136,7 @@ export const Customers: React.FC<CustomersProps> = ({ onOpenCustomerInvoices }) 
               </tbody>
             </table>
           </div>
+          <Pagination currentPage={customerPage} totalItems={filteredCustomers.length} pageSize={customerPageSize} onPageChange={setCustomerPage} />
         </div>
 
         {selectedCustomer && <div
@@ -154,11 +160,11 @@ export const Customers: React.FC<CustomersProps> = ({ onOpenCustomerInvoices }) 
                 <div><h2>{selectedCustomer.name}</h2><p style={{ color: 'var(--text-secondary)' }}>{selectedCustomer.mobile}</p></div>
                 <button type="button" className="btn btn-outline" onClick={() => setSelectedCustomer(null)} aria-label="Close outstanding details"><X size={16} /></button>
               </div>
-              <div className="flex justify-between"><span>Total Spend</span><strong>${selectedCustomer.totalSpend.toFixed(2)}</strong></div>
-              <div className="flex justify-between"><span>Outstanding Balance</span><strong className="text-warning">${customerOutstanding.toFixed(2)}</strong></div>
+              <div className="flex justify-between"><span>Total Spend</span><strong>{formatCurrency(selectedCustomer.totalSpend)}</strong></div>
+              <div className="flex justify-between"><span>Outstanding Balance</span><strong className="text-warning">{formatCurrency(customerOutstanding)}</strong></div>
               <form onSubmit={handlePayment} className="flex-col gap-2">
                 <label className="form-label">Record Outstanding Payment</label>
-                <input className="form-input" type="number" min="0.01" max={customerOutstanding} step="0.01" placeholder={`Amount paid (up to $${customerOutstanding.toFixed(2)})`} value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} disabled={customerOutstanding <= 0} required />
+                <input className="form-input" type="number" min="0.01" max={customerOutstanding} step="0.01" placeholder={`Amount paid (up to ${formatCurrency(customerOutstanding)})`} value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} disabled={customerOutstanding <= 0} required />
                 <select className="form-select" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as SalePaymentMethod)} disabled={customerOutstanding <= 0}>
                   <option value="CASH">Cash</option>
                   <option value="CARD">Card</option>

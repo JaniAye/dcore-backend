@@ -3,6 +3,8 @@ import { api, getImageUrl } from '../services/api';
 import { ProductDto, Category, StockBatchDto, ExpenseItemDto } from '../types';
 import { Plus, List, Tag, Layers, FileImage, Search, Pencil, Trash2, X } from 'lucide-react';
 import { TableLoader } from './TableLoader';
+import { Pagination } from './Pagination';
+import { formatCurrency } from '../utils/format';
 
 export type InventoryStockFilter = 'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK' | 'ALMOST_OUT';
 
@@ -64,6 +66,10 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [productPage, setProductPage] = useState(1);
+  const [batchPage, setBatchPage] = useState(1);
+  const [categoryPage, setCategoryPage] = useState(1);
+  const inventoryPageSize = 10;
 
   const filteredProducts = products.filter(product => {
     const matchesName = product.name.toLowerCase().includes(productSearch.toLowerCase());
@@ -78,6 +84,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
     const query = batchSearch.trim().toLowerCase();
     return !query || batch.productName.toLowerCase().includes(query);
   });
+  const paginatedProducts = filteredProducts.slice((productPage - 1) * inventoryPageSize, productPage * inventoryPageSize);
+  const paginatedBatches = filteredBatches.slice((batchPage - 1) * inventoryPageSize, batchPage * inventoryPageSize);
+  const paginatedCategories = categories.slice((categoryPage - 1) * inventoryPageSize, categoryPage * inventoryPageSize);
 
   const normalizedProductName = prodName.trim().toLowerCase();
   const similarProducts = normalizedProductName
@@ -533,7 +542,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Standard Price (Retail) ($)</label>
+                  <label className="form-label">Standard Price (Retail) (LKR)</label>
                   <input 
                     type="number" 
                     className="form-input" 
@@ -543,7 +552,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Wholesale Price ($)</label>
+                  <label className="form-label">Wholesale Price (LKR)</label>
                   <input 
                     type="number" 
                     className="form-input" 
@@ -612,7 +621,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   </tr>
                 </thead>
                 <tbody>
-                  {dataLoading ? <TableLoader colSpan={7} label="Loading products..." /> : filteredProducts.map(product => (
+                  {dataLoading ? <TableLoader colSpan={7} label="Loading products..." /> : paginatedProducts.map(product => (
                     <tr key={product.id} style={!product.active ? { color: 'var(--accent-danger)' } : undefined}>
                       <td><code style={{ color: 'var(--accent-primary)', fontWeight: 700 }}>{product.itemCode}</code></td>
                       <td>
@@ -628,17 +637,17 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                         {product.description && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{product.description}</p>}
                       </td>
                       <td>
-                        <div>${product.standardPrice.toFixed(2)}</div>
+                        <div>{formatCurrency(product.standardPrice)}</div>
                         <small style={{ display: 'block', color: 'var(--accent-danger)', fontSize: '0.7rem', marginTop: '0.15rem' }}>
                           {(() => {
                             const latestBatch = batches
                               .filter(batch => batch.productId === product.id)
                               .sort((first, second) => second.id - first.id)[0];
-                            return latestBatch ? `$${latestBatch.costPerItem.toFixed(2)}` : 'N/A';
+                            return latestBatch ? formatCurrency(latestBatch.costPerItem) : 'N/A';
                           })()}
                         </small>
                       </td>
-                      <td>${(product.wholesalePrice || 0).toFixed(2)}</td>
+                      <td>{formatCurrency(product.wholesalePrice)}</td>
                       <td>
                         <span className={`badge ${product.totalStock > 0 ? 'badge-success' : 'badge-danger'}`}>
                           {product.totalStock} units
@@ -664,6 +673,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   )}
                 </tbody>
               </table>
+              <Pagination currentPage={productPage} totalItems={filteredProducts.length} pageSize={inventoryPageSize} onPageChange={setProductPage} />
             </div>
           </div>
         </div>
@@ -711,7 +721,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Base Cost / Unit ($)</label>
+                  <label className="form-label">Base Cost / Unit (LKR)</label>
                   <input 
                     type="number" 
                     className="form-input" 
@@ -727,7 +737,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
               {/* <div className="form-row" style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: 'var(--radius-md)' }}>
                 <span style={{ gridColumn: '1/-1', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>UPDATE DEFAULT PRODUCT PRICES (OPTIONAL)</span>
                 <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '0.7rem' }}>Standard Retail ($)</label>
+                  <label className="form-label" style={{ fontSize: '0.7rem' }}>Standard Retail (LKR)</label>
                   <input 
                     type="number" 
                     className="form-input" 
@@ -769,7 +779,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                     <div key={idx} className="flex justify-between align-center glass-card" style={{ padding: '0.5rem 0.75rem' }}>
                       <span>{exp.description}</span>
                       <div className="flex align-center gap-4">
-                        <strong>${exp.amount.toFixed(2)}</strong>
+                        <strong>{formatCurrency(exp.amount)}</strong>
                         <button type="button" onClick={() => removeTempExpense(idx)} style={{ background: 'none', border: 'none', color: 'var(--accent-danger)', cursor: 'pointer' }}>Remove</button>
                       </div>
                     </div>
@@ -812,7 +822,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   </tr>
                 </thead>
                 <tbody>
-                  {dataLoading ? <TableLoader colSpan={5} label="Loading stock batches..." /> : filteredBatches.map(batch => {
+                  {dataLoading ? <TableLoader colSpan={5} label="Loading stock batches..." /> : paginatedBatches.map(batch => {
                     const batchProduct = products.find(product => product.id === batch.productId);
                     const isInactive = batchProduct?.active === false;
                     return (
@@ -822,11 +832,11 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                         <strong>{batch.quantityRemaining}</strong> / <span style={{ color: 'var(--text-muted)' }}>{batch.quantityInitial}</span>
                       </td>
                       <td>
-                        <strong className="text-success">${batch.costPerItem.toFixed(2)}</strong>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Base cost: ${batch.baseCost.toFixed(2)}</p>
+                        <strong className="text-success">{formatCurrency(batch.costPerItem)}</strong>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Base cost: {formatCurrency(batch.baseCost)}</p>
                       </td>
                       <td>
-                        <span className="text-danger">-${batch.totalExpenses.toFixed(2)}</span>
+                        <span className="text-danger">-{formatCurrency(batch.totalExpenses)}</span>
                       </td>
                       <td>
                         <button 
@@ -858,6 +868,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   )}
                 </tbody>
               </table>
+              <Pagination currentPage={batchPage} totalItems={filteredBatches.length} pageSize={inventoryPageSize} onPageChange={setBatchPage} />
             </div>
           </div>
         </div>
@@ -900,7 +911,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   </tr>
                 </thead>
                 <tbody>
-                  {dataLoading ? <TableLoader colSpan={2} label="Loading categories..." /> : categories.map(cat => (
+                  {dataLoading ? <TableLoader colSpan={2} label="Loading categories..." /> : paginatedCategories.map(cat => (
                     <tr key={cat.id}>
                       <td><code>#{cat.id}</code></td>
                       <td><strong>{cat.name}</strong></td>
@@ -915,6 +926,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   )}
                 </tbody>
               </table>
+              <Pagination currentPage={categoryPage} totalItems={categories.length} pageSize={inventoryPageSize} onPageChange={setCategoryPage} />
             </div>
           </div>
         </div>
@@ -938,7 +950,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Expense Amount ($)</label>
+                <label className="form-label">Expense Amount (LKR)</label>
                 <input 
                   type="number" 
                   className="form-input" 
@@ -992,11 +1004,11 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Base Cost / Unit ($)</label>
+                  <label className="form-label">Base Cost / Unit (LKR)</label>
                   <input type="number" min="0" step="0.01" className="form-input" value={editBatchBaseCost} onChange={(event) => setEditBatchBaseCost(event.target.value)} required />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Standard Retail ($)</label>
+                  <label className="form-label">Standard Retail (LKR)</label>
                   <input type="number" min="0" step="0.01" className="form-input" value={editBatchStandardPrice} onChange={(event) => setEditBatchStandardPrice(event.target.value)} />
                 </div>
               </div>

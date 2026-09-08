@@ -3,6 +3,8 @@ import { api } from '../services/api';
 import { DeliveryOrderDto, ProductDto, OrderStatus, DeliveryPaymentMethod } from '../types';
 import { Check, ShieldCheck, ChevronLeft, ChevronRight, Trash2, Pencil } from 'lucide-react';
 import { TableLoader } from './TableLoader';
+import { Pagination } from './Pagination';
+import { formatCurrency } from '../utils/format';
 
 export const DeliveryOrders: React.FC = () => {
   const [orders, setOrders] = useState<DeliveryOrderDto[]>([]);
@@ -41,6 +43,8 @@ export const DeliveryOrders: React.FC = () => {
   const [orderProductFilter, setOrderProductFilter] = useState('');
   const [orderSearchFilter, setOrderSearchFilter] = useState('');
   const [orderIdFilter, setOrderIdFilter] = useState('');
+  const [deliveryPage, setDeliveryPage] = useState(1);
+  const deliveryPageSize = 10;
 
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
@@ -59,6 +63,7 @@ export const DeliveryOrders: React.FC = () => {
     const matchesOrderId = !orderIdFilter || String(order.id) === orderIdFilter;
     return matchesStatus && matchesDate && matchesProduct && matchesSearch && matchesOrderId;
   });
+  const paginatedOrders = filteredOrders.slice((deliveryPage - 1) * deliveryPageSize, deliveryPage * deliveryPageSize);
 
   const loadData = async () => {
     setDataLoading(true);
@@ -450,7 +455,7 @@ export const DeliveryOrders: React.FC = () => {
                               <div>
                                 <strong>{p.name}</strong>
                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                  Stock: {p.totalStock} | ${p.standardPrice.toFixed(2)}
+                                  Stock: {p.totalStock} | {formatCurrency(p.standardPrice)}
                                 </p>
                               </div>
                             </div>
@@ -480,7 +485,7 @@ export const DeliveryOrders: React.FC = () => {
                     <div>
                       <strong>{item.name}</strong>
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        {item.quantity} x ${item.unitPrice.toFixed(2)} = ${(item.quantity * item.unitPrice).toFixed(2)}
+                        {item.quantity} x {formatCurrency(item.unitPrice)} = {formatCurrency(item.quantity * item.unitPrice)}
                       </p>
                     </div>
                     <button type="button" onClick={() => removeProductFromOrder(idx)} className="pointer" style={{ background: 'none', border: 'none', color: 'var(--accent-danger)' }}>
@@ -492,7 +497,7 @@ export const DeliveryOrders: React.FC = () => {
 
               <div className="delivery-items-total" aria-live="polite">
                 <span>Selected items total</span>
-                <strong>${selectedItemsTotal.toFixed(2)}</strong>
+                <strong>{formatCurrency(selectedItemsTotal)}</strong>
               </div>
             </div>
 
@@ -510,7 +515,7 @@ export const DeliveryOrders: React.FC = () => {
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">COD Amount ($) *</label>
+                <label className="form-label">COD Amount (LKR) *</label>
                 <input
                   type="number"
                   className="form-input"
@@ -526,7 +531,7 @@ export const DeliveryOrders: React.FC = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Delivery Service Fee ($) *</label>
+              <label className="form-label">Delivery Service Fee (LKR) *</label>
               <input
                 type="number"
                 className="form-input"
@@ -585,11 +590,11 @@ export const DeliveryOrders: React.FC = () => {
                 <div className="form-row" style={{ marginBottom: '1rem' }}>
                   <div>
                     <span className="form-label">COD Amount</span>
-                    <p style={{ marginTop: '0.35rem', fontSize: '1.1rem', fontWeight: 600 }}>${pendingOrder.codAmount.toFixed(2)}</p>
+                    <p style={{ marginTop: '0.35rem', fontSize: '1.1rem', fontWeight: 600 }}>{formatCurrency(pendingOrder.codAmount)}</p>
                   </div>
                   <div>
                     <span className="form-label">Delivery Fee</span>
-                    <p style={{ marginTop: '0.35rem', fontSize: '1.1rem', fontWeight: 600 }}>${pendingOrder.deliveryFee.toFixed(2)}</p>
+                    <p style={{ marginTop: '0.35rem', fontSize: '1.1rem', fontWeight: 600 }}>{formatCurrency(pendingOrder.deliveryFee)}</p>
                   </div>
                 </div>
 
@@ -706,7 +711,7 @@ export const DeliveryOrders: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {dataLoading ? <TableLoader colSpan={8} label="Loading delivery orders..." /> : filteredOrders.map(order => (
+                {dataLoading ? <TableLoader colSpan={8} label="Loading delivery orders..." /> : paginatedOrders.map(order => (
                   <tr key={order.id}>
                     <td><code>#{order.id}</code></td>
                     <td>
@@ -722,8 +727,8 @@ export const DeliveryOrders: React.FC = () => {
                       ))}
                     </td>
                     <td>{new Date(order.orderDate).toLocaleDateString()}</td>
-                    <td>${order.deliveryFee.toFixed(2)}</td>
-                    <td>${order.codAmount.toFixed(2)}</td>
+                    <td>{formatCurrency(order.deliveryFee)}</td>
+                    <td>{formatCurrency(order.codAmount)}</td>
                     <td>
                       <div className="flex gap-2 align-center">
                         <select
@@ -766,6 +771,7 @@ export const DeliveryOrders: React.FC = () => {
               </tbody>
             </table>
           </div>
+          <Pagination currentPage={deliveryPage} totalItems={filteredOrders.length} pageSize={deliveryPageSize} onPageChange={setDeliveryPage} />
         </div>
         </>
       )}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { DeliveryOrderDto, MiscExpenseDto, ProductDto, ProfitBreakdownDto } from '../types';
+import { formatCurrency } from '../utils/format';
 import { InventoryStockFilter } from './Inventory';
 import { 
   TrendingUp, 
@@ -152,7 +153,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
       <div className="stats-grid">
         <div className="glass-panel stat-card">
           <span className="stat-title">Daily Sales</span>
-          <div className="stat-value text-accent">${dailySales.toFixed(2)}</div>
+          <div className="stat-value text-accent">{formatCurrency(dailySales)}</div>
           <div className="stat-trend trend-up">
             <Calendar size={14} />
             <span>For selected date</span>
@@ -162,7 +163,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
         <div className="glass-panel stat-card">
           <span className="stat-title">Net Profit (Monthly)</span>
           <div className={`stat-value ${monthlyReport && monthlyReport.netProfit >= 0 ? 'text-success' : 'text-danger'}`}>
-            ${monthlyReport ? monthlyReport.netProfit.toFixed(2) : '0.00'}
+            {formatCurrency(monthlyReport?.netProfit)}
           </div>
           <div className="stat-trend">
             {monthlyReport && monthlyReport.netProfit >= 0 ? (
@@ -229,7 +230,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
 
         <div className="glass-panel stat-card">
           <span className="stat-title">Shipped Item Income</span>
-          <div className="stat-value text-success">${shippedDeliveryIncome.toFixed(2)}</div>
+          <div className="stat-value text-success">{formatCurrency(shippedDeliveryIncome)}</div>
           <div className="stat-trend trend-up">
             <DollarSign size={14} />
             <span>Items only, fees excluded</span>
@@ -253,19 +254,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem' }}>
             <div>
               <span className="form-label">Facebook Bills</span>
-              <p className="stat-value" style={{ fontSize: '1.25rem' }}>${expenseTotals.facebook.toFixed(2)}</p>
+              <p className="stat-value" style={{ fontSize: '1.25rem' }}>{formatCurrency(expenseTotals.facebook)}</p>
             </div>
             <div>
               <span className="form-label">Rentals</span>
-              <p className="stat-value" style={{ fontSize: '1.25rem' }}>${expenseTotals.rentals.toFixed(2)}</p>
+              <p className="stat-value" style={{ fontSize: '1.25rem' }}>{formatCurrency(expenseTotals.rentals)}</p>
             </div>
             <div>
               <span className="form-label">Packaging</span>
-              <p className="stat-value" style={{ fontSize: '1.25rem' }}>${expenseTotals.packaging.toFixed(2)}</p>
+              <p className="stat-value" style={{ fontSize: '1.25rem' }}>{formatCurrency(expenseTotals.packaging)}</p>
             </div>
             <div>
               <span className="form-label">Other Expenses</span>
-              <p className="stat-value" style={{ fontSize: '1.25rem' }}>${expenseTotals.other.toFixed(2)}</p>
+              <p className="stat-value" style={{ fontSize: '1.25rem' }}>{formatCurrency(expenseTotals.other)}</p>
             </div>
           </div>
         </button>
@@ -289,7 +290,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Gross invoice income generated this month</p>
                 </div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-                  ${monthlyReport.totalSales.toFixed(2)}
+                  {formatCurrency(monthlyReport.totalSales)}
                 </div>
               </div>
 
@@ -306,7 +307,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Buying prices and batch expenses of sold products</p>
                 </div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-warning)' }}>
-                  -${monthlyReport.totalCostOfSales.toFixed(2)}
+                  -{formatCurrency(monthlyReport.totalCostOfSales)}
                 </div>
               </div>
 
@@ -323,7 +324,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Rent, utilities, damage controls, etc. recorded in logs</p>
                 </div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-danger)' }}>
-                  -${monthlyReport.totalMiscExpenses.toFixed(2)}
+                  -{formatCurrency(monthlyReport.totalMiscExpenses)}
                 </div>
               </div>
 
@@ -345,7 +346,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
                   fontWeight: 850, 
                   color: monthlyReport.netProfit >= 0 ? 'var(--accent-success)' : 'var(--accent-danger)'
                 }}>
-                  ${monthlyReport.netProfit.toFixed(2)}
+                  {formatCurrency(monthlyReport.netProfit)}
                 </div>
               </div>
             </div>
