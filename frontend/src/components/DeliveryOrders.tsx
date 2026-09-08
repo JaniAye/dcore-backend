@@ -20,12 +20,18 @@ export const DeliveryOrders: React.FC = () => {
     quantity: number;
     name: string;
     stock: number;
+    unitPrice: number;
   }
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [addItemQty, setAddItemQty] = useState('');
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<ProductDto[]>([]);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+
+  const selectedItemsTotal = selectedItems.reduce(
+    (total, item) => total + item.unitPrice * item.quantity,
+    0
+  );
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
@@ -132,7 +138,8 @@ export const DeliveryOrders: React.FC = () => {
         productId: prod.id,
         quantity: qty,
         name: prod.name,
-        stock: prod.totalStock
+        stock: prod.totalStock,
+        unitPrice: prod.standardPrice
       }]);
     }
     setProductSearchQuery('');
@@ -164,6 +171,17 @@ export const DeliveryOrders: React.FC = () => {
       return;
     }
 
+    const parsedCodAmount = codAmount.trim() ? Number(codAmount) : 0;
+    const parsedDeliveryFee = deliveryFee.trim() ? Number(deliveryFee) : 0;
+    if (!Number.isFinite(parsedCodAmount) || parsedCodAmount < 0) {
+      setError('COD amount must be zero or greater.');
+      return;
+    }
+    if (!Number.isFinite(parsedDeliveryFee) || parsedDeliveryFee < 0) {
+      setError('Delivery service fee must be zero or greater.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setSuccess('');
@@ -174,8 +192,8 @@ export const DeliveryOrders: React.FC = () => {
         mobileNumber: mobileNumber.trim(),
         remark: remark.trim() || undefined,
         paymentMethod,
-        codAmount: codAmount ? parseFloat(codAmount) : 0,
-        deliveryFee: deliveryFee ? parseFloat(deliveryFee) : 0,
+        codAmount: parsedCodAmount,
+        deliveryFee: parsedDeliveryFee,
         items: selectedItems.map(i => ({ productId: i.productId, quantity: i.quantity }))
       };
       if (editingOrderId !== null) {
@@ -216,7 +234,8 @@ export const DeliveryOrders: React.FC = () => {
         productId: item.productId,
         quantity: item.quantity,
         name: item.productName,
-        stock: (product?.totalStock || 0) + item.quantity
+        stock: (product?.totalStock || 0) + item.quantity,
+        unitPrice: item.sellingPrice ?? product?.standardPrice ?? 0
       };
     }));
     setProductSearchQuery('');
@@ -378,48 +397,12 @@ export const DeliveryOrders: React.FC = () => {
               </div>
             </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Payment Mode</label>
-                <select 
-                  className="form-select" 
-                  value={paymentMethod} 
-                  onChange={(e) => setPaymentMethod(e.target.value as any)}
-                >
-                  <option value="COD">Cash On Delivery (COD)</option>
-                  <option value="CASH_DEPOSIT">Prepaid Cash Deposit</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">COD Amount ($)</label>
-                <input 
-                  type="number" 
-                  className="form-input" 
-                  placeholder="0.00" 
-                  value={codAmount}
-                  onChange={(e) => setCodAmount(e.target.value)}
-                  disabled={paymentMethod === 'CASH_DEPOSIT'}
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Delivery Service Fee ($)</label>
-              <input 
-                type="number" 
-                className="form-input" 
-                placeholder="0.00" 
-                value={deliveryFee}
-                onChange={(e) => setDeliveryFee(e.target.value)}
-              />
-            </div>
-
             <div style={{ borderTop: '1px dashed var(--border-glass)', paddingTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <span className="form-label">Select Package Contents</span>
               
               <div style={{ position: 'relative' }}>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <div style={{ flex: 3, position: 'relative' }}>
+                <div className="delivery-item-input-row">
+                  <div className="delivery-product-search" style={{ position: 'relative' }}>
                     <input
                       type="text"
                       className="form-input"
@@ -479,12 +462,13 @@ export const DeliveryOrders: React.FC = () => {
                   <input 
                     type="number" 
                     className="form-input" 
-                    style={{ flex: 1 }}
+                    min="1"
+                    step="1"
                     placeholder="Qty" 
                     value={addItemQty}
                     onChange={(e) => setAddItemQty(e.target.value)}
                   />
-                  <button type="button" onClick={handleAddProductToOrder} className="btn btn-secondary">
+                  <button type="button" onClick={handleAddProductToOrder} className="btn btn-secondary delivery-add-item-button">
                     Add Item
                   </button>
                 </div>
@@ -495,7 +479,9 @@ export const DeliveryOrders: React.FC = () => {
                   <div key={idx} className="flex justify-between align-center glass-card" style={{ padding: '0.5rem 1rem' }}>
                     <div>
                       <strong>{item.name}</strong>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Deducting {item.quantity} units</p>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {item.quantity} x ${item.unitPrice.toFixed(2)} = ${(item.quantity * item.unitPrice).toFixed(2)}
+                      </p>
                     </div>
                     <button type="button" onClick={() => removeProductFromOrder(idx)} className="pointer" style={{ background: 'none', border: 'none', color: 'var(--accent-danger)' }}>
                       Remove
@@ -503,6 +489,54 @@ export const DeliveryOrders: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              <div className="delivery-items-total" aria-live="polite">
+                <span>Selected items total</span>
+                <strong>${selectedItemsTotal.toFixed(2)}</strong>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">Payment Mode *</label>
+                <select
+                  className="form-select"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value as DeliveryPaymentMethod)}
+                  required
+                >
+                  <option value="COD">Cash On Delivery (COD)</option>
+                  <option value="CASH_DEPOSIT">Prepaid Cash Deposit</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">COD Amount ($) *</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={codAmount}
+                  onChange={(e) => setCodAmount(e.target.value)}
+                  disabled={paymentMethod === 'CASH_DEPOSIT'}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Delivery Service Fee ($) *</label>
+              <input
+                type="number"
+                className="form-input"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                value={deliveryFee}
+                onChange={(e) => setDeliveryFee(e.target.value)}
+                required
+              />
             </div>
 
             <button type="submit" className="btn btn-primary w-full mt-4" disabled={loading || selectedItems.length === 0}>
