@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, CalendarDays, Receipt, Eye, X } from 'lucide-react';
+import { Search, CalendarDays, Receipt, Eye, X, Printer, Download } from 'lucide-react';
 import { api } from '../services/api';
 import { CustomerDto, SaleDto } from '../types';
 import { TableLoader } from './TableLoader';
 import { Pagination } from './Pagination';
 import { formatCurrency } from '../utils/format';
+import { generateBillPdf, printBill } from '../utils/billGenerator';
 
 type FilterRange = 'today' | 'this_week' | 'this_month' | 'this_year' | 'custom';
 
@@ -123,7 +124,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
 
     const matchesSearch = (sale: SaleDto) => {
       if (!normalizedSearch) return true;
-      const customer = customersById[sale.customerId];
+      const customer = sale.customerId ? customersById[sale.customerId] : undefined;
       const searchableText = [
         sale.invoiceId,
         sale.customerName,
@@ -247,7 +248,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                       <td>
                         <div>{sale.customerName || 'Walk-in Customer'}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          {customersById[sale.customerId]?.mobile || 'No mobile'}
+                          {(sale.customerId && customersById[sale.customerId]?.mobile) || sale.customerMobile || 'No mobile'}
                         </div>
                       </td>
                       <td>{new Date(sale.createdAt).toLocaleString()}</td>
@@ -255,9 +256,41 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                       <td>{formatCurrency(sale.finalAmount)}</td>
                       <td>{formatCurrency(sale.discountAmount)}</td>
                       <td>
-                        <button className="btn btn-secondary" type="button" onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); }}>
-                          <Eye size={14} /> View
-                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            className="btn btn-secondary"
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedSale(sale); }}
+                            title="View invoice details"
+                            style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }}
+                          >
+                            <Eye size={13} /> View
+                          </button>
+                          <button
+                            className="btn btn-secondary"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const cust = sale.customerId ? customersById[sale.customerId] : undefined;
+                              const fullSale: SaleDto = {
+                                ...sale,
+                                customerMobile: sale.customerMobile || cust?.mobile
+                              };
+                              printBill(fullSale);
+                            }}
+                            title="Print bill"
+                            style={{
+                              padding: '0.35rem 0.6rem',
+                              fontSize: '0.8rem',
+                              background: 'rgba(16, 185, 129, 0.1)',
+                              borderColor: '#10b981',
+                              color: '#34d399'
+                            }}
+                            id={`btn-print-invoice-${sale.id}`}
+                          >
+                            <Printer size={13} /> Print
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -309,25 +342,71 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                 <div className="flex justify-between"><span>Outstanding</span><strong className={selectedSaleDetails.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>{formatCurrency(selectedSaleDetails.outstandingBalance)}</strong></div>
               </div>
 
+              <div className="flex gap-2 justify-end" style={{ marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cust = selectedSaleDetails.customerId ? customersById[selectedSaleDetails.customerId] : undefined;
+                    generateBillPdf({
+                      ...selectedSaleDetails,
+                      customerMobile: selectedSaleDetails.customerMobile || cust?.mobile
+                    });
+                  }}
+                  className="btn btn-secondary flex align-center gap-1"
+                  style={{ background: 'rgba(59, 130, 246, 0.12)', borderColor: '#3b82f6', color: '#93c5fd', fontSize: '0.85rem' }}
+                  id="btn-invoice-modal-download"
+                >
+                  <Download size={14} /> Download Bill (PDF)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cust = selectedSaleDetails.customerId ? customersById[selectedSaleDetails.customerId] : undefined;
+                    printBill({
+                      ...selectedSaleDetails,
+                      customerMobile: selectedSaleDetails.customerMobile || cust?.mobile
+                    });
+                  }}
+                  className="btn btn-secondary flex align-center gap-1"
+                  style={{ background: 'rgba(16, 185, 129, 0.12)', borderColor: '#10b981', color: '#6ee7b7', fontSize: '0.85rem' }}
+                  id="btn-invoice-modal-print"
+                >
+                  <Printer size={14} /> Print Bill
+                </button>
+              </div>
+
               <div>
                 <h4 style={{ marginBottom: '0.75rem' }}>Items</h4>
                 <div className="flex-col gap-2">
-                  {selectedSaleDetails.items?.map((item, index) => (
-                    <div key={`${item.productId}-${index}`} className="glass-card" style={{ padding: '0.85rem' }}>
-                      <div className="flex justify-between align-center">
-                        <strong>{item.productName}</strong>
-                        <span className="badge badge-info">Qty {item.quantity}</span>
+                  {selectedSaleDetails.items?.map((item, index) => {
+                    const disc = item.discountAmount || 0;
+                    const sub = item.subtotal ?? item.subTotal ?? (item.unitPrice * item.quantity - disc);
+                    return (
+                      <div key={`${item.productId}-${index}`} className="glass-card" style={{ padding: '0.85rem' }}>
+                        <div className="flex justify-between align-center">
+                          <strong>{item.productName}</strong>
+                          <span className="badge badge-info">Qty {item.quantity}</span>
+                        </div>
+                        {item.productCode && (
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Code: {item.productCode}</div>
+                        )}
+                        <div className="flex justify-between" style={{ marginTop: '0.4rem', color: 'var(--text-muted)' }}>
+                          <span>Unit price</span>
+                          <span>{formatCurrency(item.unitPrice)}</span>
+                        </div>
+                        {disc > 0 && (
+                          <div className="flex justify-between" style={{ color: 'var(--accent-danger)' }}>
+                            <span>Item discount</span>
+                            <span>-{formatCurrency(disc)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between" style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                          <span>Subtotal</span>
+                          <span>{formatCurrency(sub)}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between" style={{ marginTop: '0.4rem', color: 'var(--text-muted)' }}>
-                        <span>Unit price</span>
-                        <span>{formatCurrency(item.unitPrice)}</span>
-                      </div>
-                      <div className="flex justify-between" style={{ color: 'var(--text-muted)' }}>
-                        <span>Subtotal</span>
-                        <span>{formatCurrency(item.subTotal)}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { ProductDto, CustomerDto, SaleItemRequest, DiscountLevel, SalePaymentMethod, SaleDto, StockBatchDto } from '../types';
-import { Search, Plus, Minus, X, ShoppingCart, Trash2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Minus, X, ShoppingCart, Trash2, CheckCircle, AlertTriangle, Download, Printer } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
+import { generateBillPdf, printBill } from '../utils/billGenerator';
 
 export const POS: React.FC = () => {
   // Data lists
@@ -208,11 +209,6 @@ export const POS: React.FC = () => {
     loadData(); // refresh stock
   };
 
-  useEffect(() => {
-    if (!successSale) return;
-    const timer = window.setTimeout(handleNewSale, 4000);
-    return () => window.clearTimeout(timer);
-  }, [successSale]);
 
   // Submit sale
   const handleCheckout = async () => {
@@ -238,7 +234,8 @@ export const POS: React.FC = () => {
         quantity: item.quantity,
         discountType: 'NONE', // Backend handles discounts via overridePrice
         discountValue: 0,
-        overridePrice: calculateItemOverridePrice(item)
+        overridePrice: calculateItemOverridePrice(item),
+        originalPrice: item.originalPrice
       }));
 
       const sale = await api.sales.create({
@@ -718,11 +715,41 @@ export const POS: React.FC = () => {
             </p>
             <div className="glass-card" style={{ textAlign: 'left', marginTop: '1.25rem' }}>
               <div className="flex justify-between"><span>Customer</span><strong>{successSale.customerName || 'Walk-in Cash Customer'}</strong></div>
+              {successSale.customerMobile && (
+                <div className="flex justify-between" style={{ marginTop: '0.4rem' }}><span>Mobile</span><strong>{successSale.customerMobile}</strong></div>
+              )}
+              <div className="flex justify-between" style={{ marginTop: '0.65rem' }}><span>Subtotal</span><strong>{formatCurrency(successSale.totalAmount)}</strong></div>
+              {successSale.discountAmount > 0 && (
+                <div className="flex justify-between text-warning" style={{ marginTop: '0.4rem' }}><span>Total Discount</span><strong>-{formatCurrency(successSale.discountAmount)}</strong></div>
+              )}
               <div className="flex justify-between" style={{ marginTop: '0.65rem' }}><span>Payable Total</span><strong className="text-accent">{formatCurrency(successSale.finalAmount)}</strong></div>
               <div className="flex justify-between" style={{ marginTop: '0.65rem' }}><span>Outstanding Balance</span><strong className={successSale.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>{formatCurrency(successSale.outstandingBalance)}</strong></div>
             </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '1rem' }}>This message will close automatically.</p>
-            <button onClick={handleNewSale} className="btn btn-primary" style={{ marginTop: '1rem' }}>Start New POS Checkout</button>
+
+            <div className="flex gap-2 justify-center" style={{ marginTop: '1.5rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => generateBillPdf(successSale)}
+                className="btn btn-secondary flex align-center gap-1"
+                style={{ background: 'rgba(59, 130, 246, 0.15)', borderColor: '#3b82f6', color: '#93c5fd' }}
+                id="btn-pos-download-bill"
+              >
+                <Download size={16} /> Generate & Download Bill (PDF)
+              </button>
+              <button
+                type="button"
+                onClick={() => printBill(successSale)}
+                className="btn btn-secondary flex align-center gap-1"
+                style={{ background: 'rgba(16, 185, 129, 0.15)', borderColor: '#10b981', color: '#6ee7b7' }}
+                id="btn-pos-print-bill"
+              >
+                <Printer size={16} /> Print Bill
+              </button>
+            </div>
+
+            <button onClick={handleNewSale} className="btn btn-primary w-full" style={{ marginTop: '1rem' }} id="btn-pos-new-sale">
+              Start New POS Checkout
+            </button>
           </div>
         </div>
       )}

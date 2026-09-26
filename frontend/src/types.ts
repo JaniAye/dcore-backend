@@ -99,6 +99,7 @@ export interface SaleItemRequest {
   discountType: 'PERCENTAGE' | 'FIXED' | 'NONE';
   discountValue: number;
   overridePrice?: number;
+  originalPrice?: number;
 }
 
 export interface SaleRequest {
@@ -115,14 +116,18 @@ export interface SaleRequest {
 }
 
 export interface SaleItemDto {
+  id?: number;
   productId: number;
   productName: string;
-  productCode: string;
+  productCode?: string;
+  batchId?: number;
   quantity: number;
   unitPrice: number;
-  subTotal: number;
-  discountAmount: number;
-  finalAmount: number;
+  purchasePrice?: number;
+  discountAmount?: number;
+  subtotal?: number;
+  subTotal?: number;
+  finalAmount?: number;
 }
 
 export interface PaymentDto {
@@ -135,15 +140,16 @@ export interface PaymentDto {
 export interface SaleDto {
   id: number;
   invoiceId: string;
-  customerId: number;
-  customerName: string;
-  sellerName: string;
+  customerId?: number;
+  customerName?: string;
+  customerMobile?: string;
+  sellerName?: string;
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
-  discountLevel: DiscountLevel;
+  discountLevel?: DiscountLevel;
   discountReason?: string;
-  isInternal: boolean;
+  isInternal?: boolean;
   internalReason?: string;
   createdAt: string;
   items: SaleItemDto[];

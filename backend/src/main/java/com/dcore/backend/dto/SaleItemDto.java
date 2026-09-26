@@ -9,10 +9,12 @@ import java.math.BigDecimal;
 public class SaleItemDto {
     private Long id;
     private Long productId;
+    private String productCode;
     private String productName;
     private Long batchId;
     private Integer quantity;
     private BigDecimal unitPrice;
     private BigDecimal purchasePrice;
+    private BigDecimal discountAmount;
     private BigDecimal subtotal;
 }

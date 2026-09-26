@@ -97,11 +97,23 @@ public class SaleService {
                 // Pro-rate the item-level discount across batches if necessary (though usually
                 // simple)
                 // For simplicity, we just store the totals in the SaleItem
-                // Pricing logic: use override price if provided, otherwise batch selling price
-                BigDecimal batchSellingPrice = product.getWholesalePrice() != null
-                    ? product.getWholesalePrice()
-                    : batch.getSellingPrice();
-                BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null ? itemReq.getOverridePrice() : batchSellingPrice;
+                // Baseline selling price determination:
+                // 1. Explicit originalPrice from request if provided (e.g. Retail standard or Wholesale price chosen at POS)
+                // 2. Product's standard retail price
+                // 3. Batch's recorded selling price
+                // 4. Product's wholesale price fallback
+                BigDecimal baseSellingPrice;
+                if (itemReq.getOriginalPrice() != null && itemReq.getOriginalPrice().compareTo(BigDecimal.ZERO) > 0) {
+                    baseSellingPrice = itemReq.getOriginalPrice();
+                } else if (product.getStandardPrice() != null && product.getStandardPrice().compareTo(BigDecimal.ZERO) > 0) {
+                    baseSellingPrice = product.getStandardPrice();
+                } else if (batch.getSellingPrice() != null && batch.getSellingPrice().compareTo(BigDecimal.ZERO) > 0) {
+                    baseSellingPrice = batch.getSellingPrice();
+                } else {
+                    baseSellingPrice = product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO;
+                }
+
+                BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null ? itemReq.getOverridePrice() : baseSellingPrice;
                 
                 if (Boolean.TRUE.equals(request.getIsInternal())) {
                     finalUnitPrice = BigDecimal.ZERO;
@@ -124,26 +136,31 @@ public class SaleService {
                 }
 
                 // Discount logic: any difference from original selling price is treated as a discount
+                BigDecimal originalUnitPrice = baseSellingPrice;
                 BigDecimal batchDiscountAmount = BigDecimal.ZERO;
-                if (finalUnitPrice.compareTo(batchSellingPrice) < 0) {
-                    batchDiscountAmount = batchSellingPrice.subtract(finalUnitPrice).multiply(BigDecimal.valueOf(qtyFromBatch));
+                if (finalUnitPrice.compareTo(baseSellingPrice) < 0) {
+                    batchDiscountAmount = baseSellingPrice.subtract(finalUnitPrice).multiply(BigDecimal.valueOf(qtyFromBatch));
+                } else if (finalUnitPrice.compareTo(baseSellingPrice) > 0) {
+                    originalUnitPrice = finalUnitPrice;
                 }
+
+                BigDecimal itemSubtotal = finalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch));
 
                 SaleItem saleItem = SaleItem.builder()
                         .sale(sale)
                         .product(product)
                         .batch(batch)
                         .quantity(qtyFromBatch)
-                        .unitPrice(finalUnitPrice)
+                        .unitPrice(originalUnitPrice)
                         .purchasePrice(landedCost)
                         .discountType("OVERRIDE")
                         .discountValue(BigDecimal.ZERO)
                         .discountAmount(batchDiscountAmount)
-                        .subtotal(finalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch)))
+                        .subtotal(itemSubtotal)
                         .build();
 
                 saleItems.add(saleItem);
-                totalAmountStr = totalAmountStr.add(finalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch)));
+                totalAmountStr = totalAmountStr.add(originalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch)));
                 totalDiscountAmount = totalDiscountAmount.add(batchDiscountAmount);
                 remainingQtyToSell -= qtyFromBatch;
             }
@@ -242,11 +259,13 @@ public class SaleService {
         List<SaleItemDto> items = sale.getItems().stream().map(i -> SaleItemDto.builder()
                 .id(i.getId())
                 .productId(i.getProduct().getId())
+                .productCode(i.getProduct().getItemCode())
                 .productName(i.getProduct().getName())
                 .batchId(i.getBatch().getId())
                 .quantity(i.getQuantity())
                 .unitPrice(i.getUnitPrice())
                 .purchasePrice(i.getPurchasePrice())
+                .discountAmount(i.getDiscountAmount())
                 .subtotal(i.getSubtotal())
                 .build()).collect(Collectors.toList());
 
@@ -269,6 +288,7 @@ public class SaleService {
                 .invoiceId(sale.getInvoiceId())
                 .customerId(sale.getCustomer() != null ? sale.getCustomer().getId() : null)
                 .customerName(sale.getCustomer() != null ? sale.getCustomer().getName() : null)
+                .customerMobile(sale.getCustomer() != null ? sale.getCustomer().getMobile() : null)
                 .sellerName(sale.getSeller().getName())
                 .totalAmount(sale.getTotalAmount())
                 .discountAmount(sale.getDiscountAmount())

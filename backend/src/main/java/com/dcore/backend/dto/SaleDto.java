@@ -14,6 +14,7 @@ public class SaleDto {
     private String invoiceId;
     private Long customerId;
     private String customerName;
+    private String customerMobile;
     private String sellerName;
     private BigDecimal totalAmount;
     private BigDecimal discountAmount;

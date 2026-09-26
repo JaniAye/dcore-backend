@@ -10,4 +10,5 @@ public class SaleItemRequest {
     private String discountType; // "PERCENTAGE", "FIXED", or "NONE"
     private BigDecimal discountValue;
     private BigDecimal overridePrice;
+    private BigDecimal originalPrice;
 }
