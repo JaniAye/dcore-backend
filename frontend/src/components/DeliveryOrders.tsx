@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { DeliveryOrderDto, ProductDto, OrderStatus, DeliveryPaymentMethod } from '../types';
-import { Check, ShieldCheck, ChevronLeft, ChevronRight, Trash2, Pencil } from 'lucide-react';
+import { Check, ShieldCheck, ChevronLeft, ChevronRight, Trash2, Pencil, Download } from 'lucide-react';
 import { TableLoader } from './TableLoader';
 import { Pagination } from './Pagination';
 import { formatCurrency } from '../utils/format';
+import { generateBillPdf } from '../utils/billGenerator';
 
 export const DeliveryOrders: React.FC = () => {
   const [orders, setOrders] = useState<DeliveryOrderDto[]>([]);
@@ -299,6 +300,40 @@ export const DeliveryOrders: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadBill = (order: DeliveryOrderDto) => {
+    const items = order.items.map(item => {
+      const unitPrice = item.sellingPrice ?? 0;
+      return {
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice,
+        subtotal: unitPrice * item.quantity
+      };
+    });
+    const itemTotal = items.reduce((total, item) => total + item.subtotal, 0);
+    const mobileNumber = order.mobileNumber || order.customerMobile || `order-${order.id}`;
+    const safeFilename = mobileNumber.replace(/[^a-zA-Z0-9+-]/g, '_');
+
+    generateBillPdf({
+      id: order.id,
+      invoiceId: `DO-${order.id}`,
+      customerName: order.customerName || order.deliveryDetails || 'Delivery Customer',
+      customerMobile: order.mobileNumber || order.customerMobile,
+      totalAmount: itemTotal,
+      discountAmount: 0,
+      finalAmount: order.paymentMethod === 'COD' ? order.codAmount : itemTotal + order.deliveryFee,
+      createdAt: order.orderDate,
+      items,
+      payments: [],
+      outstandingBalance: 0
+    }, {
+      filename: `${safeFilename}.pdf`,
+      deliveryFee: order.deliveryFee,
+      statusLabel: `Order Status: ${order.status} | Payment: ${order.paymentMethod.replace('_', ' ')}`
+    });
   };
 
   return (
@@ -708,10 +743,11 @@ export const DeliveryOrders: React.FC = () => {
                   <th>Fee</th>
                   <th>COD Value</th>
                   <th>Status</th>
+                  <th>Bill</th>
                 </tr>
               </thead>
               <tbody>
-                {dataLoading ? <TableLoader colSpan={8} label="Loading delivery orders..." /> : paginatedOrders.map(order => (
+                {dataLoading ? <TableLoader colSpan={9} label="Loading delivery orders..." /> : paginatedOrders.map(order => (
                   <tr key={order.id}>
                     <td><code>#{order.id}</code></td>
                     <td>
@@ -757,11 +793,23 @@ export const DeliveryOrders: React.FC = () => {
                         )}
                       </div>
                     </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadBill(order)}
+                        className="btn btn-secondary"
+                        title={`Download bill for ${order.mobileNumber || order.customerMobile || `order ${order.id}`}`}
+                        aria-label={`Download bill for delivery order #${order.id}`}
+                        style={{ padding: '0.25rem', minWidth: '28px' }}
+                      >
+                        <Download size={13} />
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {!dataLoading && filteredOrders.length === 0 && (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                       {orders.length === 0
                         ? 'No delivery orders registered yet. Click "+ New Delivery Order" to create one.'
                         : 'No delivery orders match the selected filters.'}

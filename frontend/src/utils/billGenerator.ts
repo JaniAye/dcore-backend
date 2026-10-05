@@ -1,6 +1,12 @@
 import { jsPDF } from 'jspdf';
 import { SaleDto } from '../types';
 
+interface BillPdfOptions {
+  filename?: string;
+  deliveryFee?: number;
+  statusLabel?: string;
+}
+
 export const formatCurrency = (val: number | undefined | null): string => {
   if (val === undefined || val === null || isNaN(val)) return 'Rs. 0.00';
   return `Rs. ${Number(val).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -26,7 +32,7 @@ export const formatDate = (dateStr: string | undefined | null): string => {
  * Generates and immediately downloads a PDF bill completely in-memory using jsPDF.
  * No server files are created or stored.
  */
-export const generateBillPdf = (sale: SaleDto): void => {
+export const generateBillPdf = (sale: SaleDto, options: BillPdfOptions = {}): void => {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -193,6 +199,12 @@ export const generateBillPdf = (sale: SaleDto): void => {
     y += 5;
   }
 
+  if (options.deliveryFee && options.deliveryFee > 0) {
+    doc.text('Delivery Fee:', summaryX, y);
+    doc.text(formatCurrency(options.deliveryFee), valX, y, { align: 'right' });
+    y += 5;
+  }
+
   // Net Amount Box
   y += 1;
   doc.setFillColor(248, 250, 252);
@@ -218,7 +230,14 @@ export const generateBillPdf = (sale: SaleDto): void => {
 
   // Outstanding Balance
   const outstanding = sale.outstandingBalance ?? 0;
-  if (outstanding > 0) {
+  if (options.statusLabel) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    const statusLines = doc.splitTextToSize(options.statusLabel, valX - summaryX);
+    doc.text(statusLines, summaryX, y);
+    y += statusLines.length * 4.5 + 1.5;
+  } else if (outstanding > 0) {
     y += 1;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
@@ -246,8 +265,7 @@ export const generateBillPdf = (sale: SaleDto): void => {
   doc.text('This is a computer generated bill. No signature required.', pageWidth / 2, footerY + 4, { align: 'center' });
 
   // Save/Download purely client-side
-  const filename = `Bill-${sale.invoiceId || sale.id}.pdf`;
-  doc.save(filename);
+  doc.save(options.filename || `Bill-${sale.invoiceId || sale.id}.pdf`);
 };
 
 /**
