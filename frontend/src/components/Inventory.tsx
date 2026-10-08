@@ -45,6 +45,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [batchQty, setBatchQty] = useState('');
   const [batchBaseCost, setBatchBaseCost] = useState('');
   const [batchExpenses, setBatchExpenses] = useState<ExpenseItemDto[]>([]);
+  const [initialStockProduct, setInitialStockProduct] = useState<ProductDto | null>(null);
+  const [initialStockQuantity, setInitialStockQuantity] = useState('');
+  const [initialStockBaseCost, setInitialStockBaseCost] = useState('');
   const [newExpenseDesc, setNewExpenseDesc] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
 
@@ -160,8 +163,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
         standardPrice: prodStandardPrice ? parseFloat(prodStandardPrice) : 0,
         wholesalePrice: prodWholesalePrice ? parseFloat(prodWholesalePrice) : 0
       };
+      let createdProduct: ProductDto | null = null;
       if (editingProductId === null) {
-        await api.products.create(productData);
+        createdProduct = await api.products.create(productData);
       } else {
         await api.products.update(editingProductId, productData);
       }
@@ -182,8 +186,46 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
 
       loadAllData();
       setShowProductForm(false);
+      if (createdProduct) {
+        setInitialStockProduct(createdProduct);
+        setInitialStockQuantity('');
+        setInitialStockBaseCost('');
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to register product');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateInitialStock = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!initialStockProduct) return;
+    const quantity = Number(initialStockQuantity);
+    const baseCost = Number(initialStockBaseCost);
+    if (!Number.isInteger(quantity) || quantity < 1 || !Number.isFinite(baseCost) || baseCost < 0) {
+      setError('Enter a received quantity greater than zero and a valid base cost.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    try {
+      await api.batches.create({
+        productId: initialStockProduct.id,
+        quantity,
+        baseCost,
+        expenses: [],
+        standardPrice: initialStockProduct.standardPrice || 0
+      });
+      setInitialStockProduct(null);
+      setInitialStockQuantity('');
+      setInitialStockBaseCost('');
+      setSuccess('Product registered and initial stock added successfully!');
+      setActiveSubTab('products');
+      await loadAllData();
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Failed to add initial stock');
     } finally {
       setLoading(false);
     }
@@ -1017,6 +1059,32 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                 <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading}>{loading ? 'Updating batch...' : 'Update Batch'}</button>
                 <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowBatchEditModal(false)}>Cancel</button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {initialStockProduct && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Add initial stock">
+          <div className="glass-panel modal-container" style={{ maxWidth: '460px' }}>
+            <h2 style={{ marginBottom: '0.5rem' }}>Add Stock</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>{initialStockProduct.name}</p>
+            <form onSubmit={handleCreateInitialStock} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Quantity Received</label>
+                <input type="number" min="1" step="1" className="form-input" value={initialStockQuantity} onChange={(event) => setInitialStockQuantity(event.target.value)} required autoFocus />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Base Cost / Unit (LKR)</label>
+                <input type="number" min="0" step="0.01" className="form-input" value={initialStockBaseCost} onChange={(event) => setInitialStockBaseCost(event.target.value)} required />
+              </div>
+              {error && <div role="alert" style={{ color: 'var(--accent-danger)', fontSize: '0.85rem' }}>{error}</div>}
+              <button type="submit" className="btn btn-primary w-full" disabled={loading}>
+                {loading ? 'Adding stock...' : 'Add Stock'}
+              </button>
+              <button type="button" className="btn btn-secondary w-full" disabled={loading} onClick={() => { setInitialStockProduct(null); setError(''); }}>
+                Skip for now
+              </button>
             </form>
           </div>
         </div>
