@@ -6,6 +6,10 @@ import java.math.BigDecimal;
 @Data
 public class SaleItemRequest {
     private Long productId;
+    private String customItemName;
+    private String customDescription;
+    private BigDecimal baseCost;
+    private BigDecimal sellingPrice;
     private Integer quantity;
     private String discountType; // "PERCENTAGE", "FIXED", or "NONE"
     private BigDecimal discountValue;

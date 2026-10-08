@@ -76,6 +76,49 @@ public class SaleService {
         List<SaleItem> saleItems = new ArrayList<>();
 
         for (SaleItemRequest itemReq : request.getItems()) {
+            if (itemReq.getProductId() == null) {
+            if (itemReq.getCustomItemName() == null || itemReq.getCustomItemName().isBlank()
+                || itemReq.getQuantity() == null || itemReq.getQuantity() < 1
+                || itemReq.getBaseCost() == null || itemReq.getBaseCost().compareTo(BigDecimal.ZERO) < 0
+                || itemReq.getSellingPrice() == null || itemReq.getSellingPrice().compareTo(BigDecimal.ZERO) < 0) {
+                throw new RuntimeException("Custom items require a name, positive quantity, and valid cost and selling price");
+            }
+
+            BigDecimal originalUnitPrice = itemReq.getOriginalPrice() != null
+                ? itemReq.getOriginalPrice() : itemReq.getSellingPrice();
+            BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null
+                ? itemReq.getOverridePrice() : itemReq.getSellingPrice();
+            if (Boolean.TRUE.equals(request.getIsInternal())) {
+                finalUnitPrice = BigDecimal.ZERO;
+            }
+            if (!Boolean.TRUE.equals(request.getIsInternal())
+                && finalUnitPrice.compareTo(itemReq.getBaseCost()) < 0) {
+                throw new RuntimeException("Selling price of " + finalUnitPrice
+                    + " is below base cost of " + itemReq.getBaseCost()
+                    + " for item " + itemReq.getCustomItemName());
+            }
+
+            BigDecimal quantity = BigDecimal.valueOf(itemReq.getQuantity());
+            BigDecimal discountAmount = originalUnitPrice.compareTo(finalUnitPrice) > 0
+                ? originalUnitPrice.subtract(finalUnitPrice).multiply(quantity) : BigDecimal.ZERO;
+            SaleItem saleItem = SaleItem.builder()
+                .sale(sale)
+                .customItemName(itemReq.getCustomItemName().trim())
+                .customDescription(itemReq.getCustomDescription())
+                .quantity(itemReq.getQuantity())
+                .unitPrice(originalUnitPrice)
+                .purchasePrice(itemReq.getBaseCost())
+                .discountType("OVERRIDE")
+                .discountValue(BigDecimal.ZERO)
+                .discountAmount(discountAmount)
+                .subtotal(finalUnitPrice.multiply(quantity))
+                .build();
+            saleItems.add(saleItem);
+            totalAmountStr = totalAmountStr.add(originalUnitPrice.multiply(quantity));
+            totalDiscountAmount = totalDiscountAmount.add(discountAmount);
+            continue;
+            }
+
             Product product = productRepository.findById(itemReq.getProductId())
                     .orElseThrow(() -> new RuntimeException("Product not found"));
 
@@ -258,10 +301,11 @@ public class SaleService {
     private SaleDto mapToDto(Sale sale) {
         List<SaleItemDto> items = sale.getItems().stream().map(i -> SaleItemDto.builder()
                 .id(i.getId())
-                .productId(i.getProduct().getId())
-                .productCode(i.getProduct().getItemCode())
-                .productName(i.getProduct().getName())
-                .batchId(i.getBatch().getId())
+            .productId(i.getProduct() != null ? i.getProduct().getId() : null)
+            .productCode(i.getProduct() != null ? i.getProduct().getItemCode() : null)
+            .productName(i.getProduct() != null ? i.getProduct().getName() : i.getCustomItemName())
+            .description(i.getCustomDescription())
+            .batchId(i.getBatch() != null ? i.getBatch().getId() : null)
                 .quantity(i.getQuantity())
                 .unitPrice(i.getUnitPrice())
                 .purchasePrice(i.getPurchasePrice())

@@ -20,12 +20,15 @@ public class SaleItem {
     private Sale sale;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id", nullable = false)
+    @JoinColumn(name = "product_id")
     private Product product;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "batch_id", nullable = false)
+    @JoinColumn(name = "batch_id")
     private StockBatch batch;
+
+    private String customItemName;
+    private String customDescription;
 
     @Column(nullable = false)
     private Integer quantity;

@@ -25,6 +25,10 @@ public class DeliveryOrderRequest {
     @Data
     public static class DeliveryOrderItemRequest {
         private Long productId;
+        private String customItemName;
+        private String customDescription;
+        private BigDecimal baseCost;
+        private BigDecimal sellingPrice;
         private Integer quantity;
     }
 }

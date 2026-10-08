@@ -1,6 +1,7 @@
 package com.dcore.backend.service;
 
 import com.dcore.backend.dto.DeliveryOrderDto;
+import com.dcore.backend.dto.DeliveryOrderRequest;
 import com.dcore.backend.dto.MiscExpenseDto;
 import com.dcore.backend.dto.SaleDto;
 import com.dcore.backend.entity.DeliveryOrder;
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -76,6 +78,29 @@ class DeliveryOrderServiceTest {
         assertEquals(DeliveryOrder.OrderStatus.RETURNED, order.getStatus());
         verify(stockBatchRepository, never()).save(any());
         verify(deliveryOrderRepository, never()).save(any());
+    }
+
+    @Test
+    void creatingCustomItemDoesNotReadOrChangeInventory() {
+        DeliveryOrderRequest.DeliveryOrderItemRequest itemRequest = new DeliveryOrderRequest.DeliveryOrderItemRequest();
+        itemRequest.setCustomItemName("Special order item");
+        itemRequest.setCustomDescription("Customer supplied request");
+        itemRequest.setBaseCost(new BigDecimal("12.50"));
+        itemRequest.setSellingPrice(new BigDecimal("18.00"));
+        itemRequest.setQuantity(2);
+
+        when(deliveryOrderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderItemRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DeliveryOrderDto result = deliveryOrderService.createOrder(DeliveryOrderRequest.builder()
+                .paymentMethod(DeliveryOrder.PaymentMethod.COD)
+                .items(List.of(itemRequest))
+                .build());
+
+        assertEquals("Special order item", result.getItems().get(0).getProductName());
+        assertEquals(new BigDecimal("12.50"), result.getItems().get(0).getPurchasePrice());
+        assertEquals(new BigDecimal("18.00"), result.getItems().get(0).getSellingPrice());
+        verifyNoInteractions(productRepository, stockBatchRepository, batchExpenseRepository);
     }
 
     private DeliveryOrder order(DeliveryOrder.OrderStatus status, StockBatch batch, int quantity) {

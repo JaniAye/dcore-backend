@@ -14,13 +14,22 @@ export const POS: React.FC = () => {
   
   // Cart state
   interface CartItem {
-    product: ProductDto;
+    product?: ProductDto;
+    customItemName?: string;
+    customDescription?: string;
+    baseCost?: number;
     quantity: number;
     originalPrice: number;
     salePrice: number;
     useWholesale: boolean;
   }
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [showAddCustomItem, setShowAddCustomItem] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customDescription, setCustomDescription] = useState('');
+  const [customBaseCost, setCustomBaseCost] = useState('');
+  const [customSellingPrice, setCustomSellingPrice] = useState('');
+  const [customQuantity, setCustomQuantity] = useState('1');
   
   // Customer selection
   const [mobileQuery, setMobileQuery] = useState('');
@@ -130,7 +139,7 @@ export const POS: React.FC = () => {
       return;
     }
 
-    const existingIndex = cart.findIndex(item => item.product.id === product.id);
+    const existingIndex = cart.findIndex(item => item.product?.id === product.id);
     if (existingIndex > -1) {
       const updatedCart = [...cart];
       if (updatedCart[existingIndex].quantity >= product.totalStock) {
@@ -150,13 +159,42 @@ export const POS: React.FC = () => {
     }
   };
 
+  const addCustomItemToCart = (event: React.FormEvent) => {
+    event.preventDefault();
+    const quantity = Number(customQuantity);
+    const baseCost = Number(customBaseCost);
+    const sellingPrice = Number(customSellingPrice);
+    if (!customItemName.trim() || !Number.isInteger(quantity) || quantity < 1
+        || !Number.isFinite(baseCost) || baseCost < 0
+        || !Number.isFinite(sellingPrice) || sellingPrice < baseCost) {
+      setError('Enter an item name, quantity, and valid prices. Selling price must cover base cost.');
+      return;
+    }
+    setCart(current => [...current, {
+      customItemName: customItemName.trim(),
+      customDescription: customDescription.trim() || undefined,
+      baseCost,
+      quantity,
+      originalPrice: sellingPrice,
+      salePrice: sellingPrice,
+      useWholesale: false
+    }]);
+    setCustomItemName('');
+    setCustomDescription('');
+    setCustomBaseCost('');
+    setCustomSellingPrice('');
+    setCustomQuantity('1');
+    setShowAddCustomItem(false);
+    setError('');
+  };
+
   // Update item in cart
   const updateCartItem = (index: number, updates: Partial<CartItem>) => {
     const updatedCart = [...cart];
     const item = { ...updatedCart[index], ...updates };
     
     // Validate stock
-    if (item.quantity > item.product.totalStock) {
+    if (item.product && item.quantity > item.product.totalStock) {
       alert(`Only ${item.product.totalStock} units available.`);
       item.quantity = item.product.totalStock;
     }
@@ -230,7 +268,12 @@ export const POS: React.FC = () => {
 
     try {
       const items: SaleItemRequest[] = cart.map(item => ({
-        productId: item.product.id,
+        ...(item.product ? { productId: item.product.id } : {
+          customItemName: item.customItemName,
+          customDescription: item.customDescription,
+          baseCost: item.baseCost,
+          sellingPrice: item.originalPrice
+        }),
         quantity: item.quantity,
         discountType: 'NONE', // Backend handles discounts via overridePrice
         discountValue: 0,
@@ -290,7 +333,12 @@ export const POS: React.FC = () => {
         {/* Main area: Cart and Checkout controls */}
         <div className="flex-col gap-4">
           <div className="glass-panel" style={{ padding: '1.5rem', position: 'relative', zIndex: 2 }}>
-            <label className="form-label">Search Items</label>
+            <div className="flex justify-between align-center">
+              <label className="form-label">Search Items</label>
+              <button type="button" className="btn btn-outline" onClick={() => setShowAddCustomItem(true)}>
+                <Plus size={15} /> Add unlisted item
+              </button>
+            </div>
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{
                 position: 'absolute',
@@ -381,36 +429,37 @@ export const POS: React.FC = () => {
                 const finalUnitPrice = calculateItemOverridePrice(item);
                 const itemTotal = finalUnitPrice * item.quantity;
                 const itemDiscount = Math.max(0, item.originalPrice - item.salePrice);
-                const wholesalePrice = getProductWholesalePrice(item.product);
-                const itemCost = getProductCost(item.product.id);
-                const isWholesalePriceOnRetail = !item.useWholesale
-                  && item.product.wholesalePrice > 0
+                const product = item.product;
+                const wholesalePrice = product ? getProductWholesalePrice(product) : item.originalPrice;
+                const itemCost = product ? getProductCost(product.id) : (item.baseCost || 0);
+                const isWholesalePriceOnRetail = !!product && !item.useWholesale
+                  && product.wholesalePrice > 0
                   && item.salePrice === wholesalePrice;
                 const isBelowCost = itemCost > 0 && item.salePrice <= itemCost;
                 return (
-                  <div key={item.product.id} className="pos-cart-item">
+                  <div key={product ? `product-${product.id}` : `custom-${index}`} className="pos-cart-item">
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {item.product.name}
+                        {product?.name || item.customItemName}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '0.5rem' }}>
-                        <span>Code: {item.product.itemCode}</span>
-                        <span>Stock: {item.product.totalStock}</span>
+                        {product ? <><span>Code: {product.itemCode}</span><span>Stock: {product.totalStock}</span></> : <span>Unlisted item - not tracked in stock</span>}
+                        {item.customDescription && <span>{item.customDescription}</span>}
                       </div>
                     </div>
 
                     <div className="pos-cart-controls">
                       <div className="pos-cart-mode-quantity">
-                        <div className="pos-price-modes" role="group" aria-label="Price type">
+                        {product && <div className="pos-price-modes" role="group" aria-label="Price type">
                           <label>
                             <input
                               type="radio"
-                              name={`price-mode-${item.product.id}`}
+                              name={`price-mode-${product.id}`}
                               checked={!item.useWholesale}
                               onChange={() => updateCartItem(index, {
                                 useWholesale: false,
-                                originalPrice: item.product.standardPrice,
-                                salePrice: item.product.standardPrice
+                                originalPrice: product.standardPrice,
+                                salePrice: product.standardPrice
                               })}
                             />
                             Retail
@@ -418,10 +467,10 @@ export const POS: React.FC = () => {
                           <label>
                             <input
                               type="radio"
-                              name={`price-mode-${item.product.id}`}
+                              name={`price-mode-${product.id}`}
                               checked={item.useWholesale}
                               onChange={() => {
-                                const wholesalePrice = getProductWholesalePrice(item.product);
+                                const wholesalePrice = getProductWholesalePrice(product);
                                 updateCartItem(index, {
                                   useWholesale: true,
                                   originalPrice: wholesalePrice,
@@ -431,7 +480,7 @@ export const POS: React.FC = () => {
                             />
                             Wholesale
                           </label>
-                        </div>
+                        </div>}
                         <div className="pos-quantity-control">
                           <span className="pos-control-label">Qty</span>
                           <button
@@ -446,16 +495,16 @@ export const POS: React.FC = () => {
                           <button
                             type="button"
                             aria-label="Increase quantity"
-                            disabled={item.quantity >= item.product.totalStock}
+                            disabled={!!product && item.quantity >= product.totalStock}
                             onClick={() => updateCartItem(index, { quantity: item.quantity + 1 })}
                           >
                             <Plus size={13} />
                           </button>
                         </div>
                       </div>
-                      <label className="pos-control-label" htmlFor={`item-price-${item.product.id}`}>Item price</label>
+                      <label className="pos-control-label" htmlFor={`item-price-${product?.id || `custom-${index}`}`}>Item price</label>
                       <input
-                        id={`item-price-${item.product.id}`}
+                        id={`item-price-${product?.id || `custom-${index}`}`}
                         type="number"
                         className="form-input"
                         style={{ borderColor: isBelowCost ? 'var(--accent-danger)' : isWholesalePriceOnRetail ? '#eab308' : undefined,
@@ -754,6 +803,21 @@ export const POS: React.FC = () => {
         </div>
       )}
 
+      {showAddCustomItem && (
+        <div role="dialog" aria-modal="true" aria-label="Add unlisted POS item" onClick={() => setShowAddCustomItem(false)} style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'rgba(0, 0, 0, 0.65)' }}>
+          <form onSubmit={addCustomItemToCart} onClick={event => event.stopPropagation()} className="glass-panel flex-col gap-2" style={{ width: '100%', maxWidth: '460px' }}>
+            <div className="flex justify-between align-center"><h3>Add unlisted item</h3><button type="button" className="btn btn-outline" onClick={() => setShowAddCustomItem(false)} aria-label="Close"><X size={16} /></button></div>
+            <div className="form-group"><label className="form-label">Item name *</label><input className="form-input" value={customItemName} onChange={event => setCustomItemName(event.target.value)} required autoFocus /></div>
+            <div className="form-group"><label className="form-label">Description</label><input className="form-input" value={customDescription} onChange={event => setCustomDescription(event.target.value)} /></div>
+            <div className="form-row">
+              <div className="form-group"><label className="form-label">Base cost *</label><input type="number" min="0" step="0.01" className="form-input" value={customBaseCost} onChange={event => setCustomBaseCost(event.target.value)} required /></div>
+              <div className="form-group"><label className="form-label">Selling price *</label><input type="number" min={customBaseCost || 0} step="0.01" className="form-input" value={customSellingPrice} onChange={event => setCustomSellingPrice(event.target.value)} required /></div>
+            </div>
+            <div className="form-group"><label className="form-label">Quantity *</label><input type="number" min="1" step="1" className="form-input" value={customQuantity} onChange={event => setCustomQuantity(event.target.value)} required /></div>
+            <button type="submit" className="btn btn-primary w-full"><Plus size={16} /> Add to POS</button>
+          </form>
+        </div>
+      )}
       {showAddCustomer && (
         <div
           role="dialog"

@@ -19,7 +19,10 @@ export const DeliveryOrders: React.FC = () => {
   const [deliveryFee, setDeliveryFee] = useState('');
 
   interface SelectedItem {
-    productId: number;
+    productId?: number;
+    customItemName?: string;
+    customDescription?: string;
+    baseCost?: number;
     quantity: number;
     name: string;
     stock: number;
@@ -30,6 +33,12 @@ export const DeliveryOrders: React.FC = () => {
   const [productSearchQuery, setProductSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<ProductDto[]>([]);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [showAddCustomItem, setShowAddCustomItem] = useState(false);
+  const [customItemName, setCustomItemName] = useState('');
+  const [customDescription, setCustomDescription] = useState('');
+  const [customBaseCost, setCustomBaseCost] = useState('');
+  const [customSellingPrice, setCustomSellingPrice] = useState('');
+  const [customQuantity, setCustomQuantity] = useState('1');
 
   const selectedItemsTotal = selectedItems.reduce(
     (total, item) => total + item.unitPrice * item.quantity,
@@ -108,6 +117,35 @@ export const DeliveryOrders: React.FC = () => {
     setProductSearchQuery(product.name);
     setFilteredProducts([]);
     setShowProductDropdown(false);
+  };
+
+  const handleAddCustomItem = (event: React.FormEvent) => {
+    event.preventDefault();
+    const quantity = Number(customQuantity);
+    const baseCost = Number(customBaseCost);
+    const sellingPrice = Number(customSellingPrice);
+    if (!customItemName.trim() || !Number.isInteger(quantity) || quantity < 1
+        || !Number.isFinite(baseCost) || baseCost < 0
+        || !Number.isFinite(sellingPrice) || sellingPrice < baseCost) {
+      setError('Enter an item name, quantity, and valid prices. Selling price must cover base cost.');
+      return;
+    }
+    setSelectedItems(current => [...current, {
+      customItemName: customItemName.trim(),
+      customDescription: customDescription.trim() || undefined,
+      baseCost,
+      quantity,
+      name: customItemName.trim(),
+      stock: 0,
+      unitPrice: sellingPrice
+    }]);
+    setCustomItemName('');
+    setCustomDescription('');
+    setCustomBaseCost('');
+    setCustomSellingPrice('');
+    setCustomQuantity('1');
+    setShowAddCustomItem(false);
+    setError('');
   };
 
   const handleAddProductToOrder = () => {
@@ -200,7 +238,13 @@ export const DeliveryOrders: React.FC = () => {
         paymentMethod,
         codAmount: parsedCodAmount,
         deliveryFee: parsedDeliveryFee,
-        items: selectedItems.map(i => ({ productId: i.productId, quantity: i.quantity }))
+        items: selectedItems.map(i => i.productId != null ? ({ productId: i.productId, quantity: i.quantity }) : ({
+          customItemName: i.customItemName,
+          customDescription: i.customDescription,
+          baseCost: i.baseCost,
+          sellingPrice: i.unitPrice,
+          quantity: i.quantity
+        }))
       };
       if (editingOrderId !== null) {
         await api.deliveryOrders.update(editingOrderId, orderData);
@@ -237,7 +281,10 @@ export const DeliveryOrders: React.FC = () => {
     setSelectedItems(order.items.map(item => {
       const product = products.find(candidate => candidate.id === item.productId);
       return {
-        productId: item.productId,
+        productId: item.productId ?? undefined,
+        customItemName: item.productId != null ? undefined : item.productName,
+        customDescription: item.description,
+        baseCost: item.purchasePrice,
         quantity: item.quantity,
         name: item.productName,
         stock: (product?.totalStock || 0) + item.quantity,
@@ -306,8 +353,9 @@ export const DeliveryOrders: React.FC = () => {
     const items = order.items.map(item => {
       const unitPrice = item.sellingPrice ?? 0;
       return {
-        productId: item.productId,
+        productId: item.productId ?? 0,
         productName: item.productName,
+        description: item.description,
         quantity: item.quantity,
         unitPrice,
         subtotal: unitPrice * item.quantity
@@ -513,6 +561,9 @@ export const DeliveryOrders: React.FC = () => {
                   </button>
                 </div>
               </div>
+              <button type="button" className="btn btn-outline" onClick={() => setShowAddCustomItem(true)}>
+                Add unlisted item
+              </button>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                 {selectedItems.map((item, idx) => (
@@ -522,6 +573,7 @@ export const DeliveryOrders: React.FC = () => {
                       <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                         {item.quantity} x {formatCurrency(item.unitPrice)} = {formatCurrency(item.quantity * item.unitPrice)}
                       </p>
+                      {item.customDescription && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.customDescription} · not tracked in stock</p>}
                     </div>
                     <button type="button" onClick={() => removeProductFromOrder(idx)} className="pointer" style={{ background: 'none', border: 'none', color: 'var(--accent-danger)' }}>
                       Remove
@@ -641,8 +693,8 @@ export const DeliveryOrders: React.FC = () => {
                 <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '1rem' }}>
                   <span className="form-label">Items and Quantities</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    {pendingOrder.items.map(item => (
-                      <div key={`${pendingOrder.id}-${item.productId}`} className="flex justify-between align-center" style={{ padding: '0.65rem 0.75rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
+                    {pendingOrder.items.map((item, index) => (
+                      <div key={`${pendingOrder.id}-${item.productId ?? item.productName}-${index}`} className="flex justify-between align-center" style={{ padding: '0.65rem 0.75rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)' }}>
                         <span>{item.productName}</span>
                         <strong>Qty: {item.quantity}</strong>
                       </div>
@@ -755,8 +807,8 @@ export const DeliveryOrders: React.FC = () => {
                     </td>
                     <td>{order.mobileNumber || 'N/A'}</td>
                     <td className="delivery-items-cell">
-                      {order.items.map(item => (
-                        <div key={`${order.id}-${item.productId}`} className="delivery-item-row">
+                      {order.items.map((item, index) => (
+                        <div key={`${order.id}-${item.productId ?? item.productName}-${index}`} className="delivery-item-row">
                           <span>{item.productName}</span>
                           <strong>Qty: {item.quantity}</strong>
                         </div>
@@ -822,6 +874,21 @@ export const DeliveryOrders: React.FC = () => {
           <Pagination currentPage={deliveryPage} totalItems={filteredOrders.length} pageSize={deliveryPageSize} onPageChange={setDeliveryPage} />
         </div>
         </>
+      )}
+      {showAddCustomItem && (
+        <div role="dialog" aria-modal="true" aria-label="Add unlisted delivery item" onClick={() => setShowAddCustomItem(false)} style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'rgba(0, 0, 0, 0.65)' }}>
+          <form onSubmit={handleAddCustomItem} onClick={event => event.stopPropagation()} className="glass-panel flex-col gap-2" style={{ width: '100%', maxWidth: '460px' }}>
+            <div className="flex justify-between align-center"><h3>Add unlisted item</h3><button type="button" className="btn btn-outline" onClick={() => setShowAddCustomItem(false)} aria-label="Close">Close</button></div>
+            <div className="form-group"><label className="form-label">Item name *</label><input className="form-input" value={customItemName} onChange={event => setCustomItemName(event.target.value)} required autoFocus /></div>
+            <div className="form-group"><label className="form-label">Description</label><input className="form-input" value={customDescription} onChange={event => setCustomDescription(event.target.value)} /></div>
+            <div className="form-row">
+              <div className="form-group"><label className="form-label">Base cost *</label><input type="number" min="0" step="0.01" className="form-input" value={customBaseCost} onChange={event => setCustomBaseCost(event.target.value)} required /></div>
+              <div className="form-group"><label className="form-label">Selling price *</label><input type="number" min={customBaseCost || 0} step="0.01" className="form-input" value={customSellingPrice} onChange={event => setCustomSellingPrice(event.target.value)} required /></div>
+            </div>
+            <div className="form-group"><label className="form-label">Quantity *</label><input type="number" min="1" step="1" className="form-input" value={customQuantity} onChange={event => setCustomQuantity(event.target.value)} required /></div>
+            <button type="submit" className="btn btn-primary w-full">Add to delivery order</button>
+          </form>
+        </div>
       )}
     </div>
   );

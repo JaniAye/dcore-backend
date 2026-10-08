@@ -11,6 +11,7 @@ public class SaleItemDto {
     private Long productId;
     private String productCode;
     private String productName;
+    private String description;
     private Long batchId;
     private Integer quantity;
     private BigDecimal unitPrice;

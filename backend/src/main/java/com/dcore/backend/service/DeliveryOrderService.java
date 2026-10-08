@@ -77,6 +77,25 @@ public class DeliveryOrderService {
         List<DeliveryOrderItem> orderItems = new ArrayList<>();
 
         for (DeliveryOrderRequest.DeliveryOrderItemRequest itemReq : itemRequests) {
+            if (itemReq.getProductId() == null) {
+                if (itemReq.getCustomItemName() == null || itemReq.getCustomItemName().isBlank()
+                        || itemReq.getQuantity() == null || itemReq.getQuantity() < 1
+                        || itemReq.getBaseCost() == null || itemReq.getBaseCost().compareTo(BigDecimal.ZERO) < 0
+                        || itemReq.getSellingPrice() == null || itemReq.getSellingPrice().compareTo(BigDecimal.ZERO) < 0) {
+                    throw new RuntimeException("Custom items require a name, positive quantity, and valid cost and selling price");
+                }
+                DeliveryOrderItem orderItem = DeliveryOrderItem.builder()
+                        .deliveryOrder(order)
+                        .customItemName(itemReq.getCustomItemName().trim())
+                        .customDescription(itemReq.getCustomDescription())
+                        .quantity(itemReq.getQuantity())
+                        .purchasePrice(itemReq.getBaseCost())
+                        .sellingPrice(itemReq.getSellingPrice())
+                        .build();
+                orderItems.add(deliveryOrderItemRepository.save(orderItem));
+                continue;
+            }
+
             Product product = productRepository.findById(itemReq.getProductId())
                     .orElseThrow(() -> new RuntimeException("Product not found: " + itemReq.getProductId()));
 
@@ -117,6 +136,7 @@ public class DeliveryOrderService {
     private void restoreOrderItems(DeliveryOrder order) {
         for (DeliveryOrderItem item : order.getItems()) {
             StockBatch batch = item.getBatch();
+            if (batch == null) continue;
             batch.setQuantityRemaining(batch.getQuantityRemaining() + item.getQuantity());
             stockBatchRepository.save(batch);
         }
@@ -166,6 +186,7 @@ public class DeliveryOrderService {
 
         for (DeliveryOrderItem item : order.getItems()) {
             StockBatch batch = item.getBatch();
+            if (batch == null) continue;
             batchesById.put(batch.getId(), batch);
             quantitiesByBatchId.merge(batch.getId(), item.getQuantity(), Integer::sum);
         }
@@ -195,6 +216,7 @@ public class DeliveryOrderService {
         }
         for (DeliveryOrderItem item : order.getItems()) {
             StockBatch batch = item.getBatch();
+            if (batch == null) continue;
             batch.setQuantityRemaining(batch.getQuantityRemaining() + item.getQuantity());
             stockBatchRepository.save(batch);
         }
@@ -238,13 +260,14 @@ public class DeliveryOrderService {
                 .deliveryFee(order.getDeliveryFee())
                 .items(order.getItems().stream().map(item -> 
                     DeliveryOrderDto.DeliveryOrderItemDto.builder()
-                        .productId(item.getProduct().getId())
-                        .productName(item.getProduct().getName())
+                        .productId(item.getProduct() != null ? item.getProduct().getId() : null)
+                        .productName(item.getProduct() != null ? item.getProduct().getName() : item.getCustomItemName())
+                        .description(item.getCustomDescription())
                         .quantity(item.getQuantity())
                         .purchasePrice(item.getPurchasePrice())
                         .sellingPrice(item.getSellingPrice() != null
                             ? item.getSellingPrice()
-                            : item.getProduct().getStandardPrice())
+                            : item.getProduct() != null ? item.getProduct().getStandardPrice() : BigDecimal.ZERO)
                         .build()
                 ).collect(Collectors.toList()))
                 .build();

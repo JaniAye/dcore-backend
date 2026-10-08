@@ -94,7 +94,11 @@ export type DeliveryPaymentMethod = 'COD' | 'CASH_DEPOSIT';
 export type OrderStatus = 'PENDING' | 'READY' | 'DELIVERED' | 'RETURNED';
 
 export interface SaleItemRequest {
-  productId: number;
+  productId?: number;
+  customItemName?: string;
+  customDescription?: string;
+  baseCost?: number;
+  sellingPrice?: number;
   quantity: number;
   discountType: 'PERCENTAGE' | 'FIXED' | 'NONE';
   discountValue: number;
@@ -117,8 +121,9 @@ export interface SaleRequest {
 
 export interface SaleItemDto {
   id?: number;
-  productId: number;
+  productId?: number;
   productName: string;
+  description?: string;
   productCode?: string;
   batchId?: number;
   quantity: number;
@@ -164,7 +169,11 @@ export interface PaymentRequest {
 }
 
 export interface DeliveryOrderItemRequest {
-  productId: number;
+  productId?: number;
+  customItemName?: string;
+  customDescription?: string;
+  baseCost?: number;
+  sellingPrice?: number;
   quantity: number;
 }
 
@@ -180,8 +189,9 @@ export interface DeliveryOrderRequest {
 }
 
 export interface DeliveryOrderItemDto {
-  productId: number;
+  productId?: number;
   productName: string;
+  description?: string;
   quantity: number;
   purchasePrice: number;
   sellingPrice?: number;

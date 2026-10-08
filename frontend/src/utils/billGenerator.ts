@@ -149,7 +149,7 @@ export const generateBillPdf = (sale: SaleDto, options: BillPdfOptions = {}): vo
 
     const itemNum = `${index + 1}`;
     const codePrefix = item.productCode ? `[${item.productCode}] ` : '';
-    const itemTitle = `${codePrefix}${item.productName}`;
+    const itemTitle = `${codePrefix}${item.productName}${item.description ? ` - ${item.description}` : ''}`;
     const unitPriceStr = formatCurrency(item.unitPrice).replace('Rs. ', '');
     const discountVal = item.discountAmount || 0;
     const discountStr = discountVal > 0 ? `-${formatCurrency(discountVal).replace('Rs. ', '')}` : '0.00';

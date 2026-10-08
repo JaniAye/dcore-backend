@@ -28,6 +28,7 @@ public class DeliveryOrderDto {
     public static class DeliveryOrderItemDto {
         private Long productId;
         private String productName;
+        private String description;
         private Integer quantity;
         private BigDecimal purchasePrice;
         private BigDecimal sellingPrice;

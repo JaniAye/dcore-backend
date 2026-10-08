@@ -13,6 +13,10 @@ public class DatabaseMigration {
 
     @PostConstruct
     public void migratePricingColumns() {
+        jdbcTemplate.execute("ALTER TABLE sale_items ALTER COLUMN product_id DROP NOT NULL");
+        jdbcTemplate.execute("ALTER TABLE sale_items ALTER COLUMN batch_id DROP NOT NULL");
+        jdbcTemplate.execute("ALTER TABLE delivery_order_items ALTER COLUMN product_id DROP NOT NULL");
+        jdbcTemplate.execute("ALTER TABLE delivery_order_items ALTER COLUMN batch_id DROP NOT NULL");
         jdbcTemplate.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(19, 2)");
         jdbcTemplate.execute("ALTER TABLE products ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE");
         jdbcTemplate.execute("UPDATE products SET active = TRUE WHERE active IS NULL");
