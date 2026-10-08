@@ -10,5 +10,6 @@ public class ProfitBreakdownDto {
     private BigDecimal totalSales;
     private BigDecimal totalCostOfSales;
     private BigDecimal totalMiscExpenses;
+    private BigDecimal returnedDeliveryFees;
     private BigDecimal netProfit;
 }

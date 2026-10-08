@@ -72,6 +72,12 @@ public class ReportService {
                 .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        BigDecimal returnedDeliveryFees = deliveryOrderService.getAllOrders().stream()
+                .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.RETURNED)
+                .filter(o -> o.getOrderDate() != null && o.getOrderDate().getYear() == year && o.getOrderDate().getMonthValue() == month)
+                .map(o -> o.getDeliveryFee() != null ? o.getDeliveryFee() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         // 3. Miscellaneous Expenses
         BigDecimal totalMiscExpenses = miscExpenseService.getAllExpenses().stream()
                 .filter(e -> e.getExpenseDate().getYear() == year && e.getExpenseDate().getMonthValue() == month)
@@ -80,12 +86,13 @@ public class ReportService {
 
         BigDecimal totalSales = posRevenue.add(deliveryRevenue);
         BigDecimal totalCostOfSales = posCostOfSales.add(deliveryCostOfSales);
-        BigDecimal netProfit = totalSales.subtract(totalCostOfSales).subtract(totalMiscExpenses);
+        BigDecimal netProfit = totalSales.subtract(totalCostOfSales).subtract(totalMiscExpenses).subtract(returnedDeliveryFees);
 
         return ProfitBreakdownDto.builder()
                 .totalSales(totalSales)
                 .totalCostOfSales(totalCostOfSales)
                 .totalMiscExpenses(totalMiscExpenses)
+                .returnedDeliveryFees(returnedDeliveryFees)
                 .netProfit(netProfit)
                 .build();
     }

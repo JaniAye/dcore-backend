@@ -331,6 +331,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
+                padding: '1.25rem',
+                background: 'rgba(255,255,255,0.02)',
+                borderRadius: 'var(--radius-md)',
+                borderLeft: '4px solid var(--accent-danger)'
+              }}>
+                <div>
+                  <span style={{ fontWeight: 650 }}>Returned Delivery Fees</span>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Shipping costs charged on returned orders</p>
+                </div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-danger)' }}>
+                  -{formatCurrency(monthlyReport.returnedDeliveryFees)}
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
                 padding: '1.5rem',
                 background: monthlyReport.netProfit >= 0 ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
                 borderRadius: 'var(--radius-md)',
@@ -339,7 +356,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
               }}>
                 <div>
                   <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>Net Profit / Loss</span>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Net performance calculated as: Revenue - COGS - Expenses</p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Revenue - COGS - expenses - returned delivery fees</p>
                 </div>
                 <div style={{ 
                   fontSize: '1.5rem', 

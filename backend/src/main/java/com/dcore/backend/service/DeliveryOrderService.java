@@ -12,7 +12,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -139,27 +141,49 @@ public class DeliveryOrderService {
         DeliveryOrder order = deliveryOrderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found"));
 
-        if (order.getStatus() == DeliveryOrder.OrderStatus.RETURNED && newStatus != DeliveryOrder.OrderStatus.RETURNED) {
-            throw new RuntimeException("Cannot change status of a returned order");
-        }
-
         if (newStatus == DeliveryOrder.OrderStatus.PENDING
+                && order.getStatus() != DeliveryOrder.OrderStatus.RETURNED
                 && order.getStatus() != DeliveryOrder.OrderStatus.READY
                 && order.getStatus() != DeliveryOrder.OrderStatus.DELIVERED) {
             throw new RuntimeException("Only ready or delivered orders can be marked pending");
         }
 
-        if (newStatus == DeliveryOrder.OrderStatus.RETURNED && order.getStatus() != DeliveryOrder.OrderStatus.RETURNED) {
-            // Restock items
-            for (DeliveryOrderItem item : order.getItems()) {
-                StockBatch batch = item.getBatch();
-                batch.setQuantityRemaining(batch.getQuantityRemaining() + item.getQuantity());
-                stockBatchRepository.save(batch);
+        if (order.getStatus() != newStatus) {
+            if (newStatus == DeliveryOrder.OrderStatus.RETURNED) {
+                restoreOrderItems(order);
+            } else if (order.getStatus() == DeliveryOrder.OrderStatus.RETURNED) {
+                deductReturnedOrderItems(order);
             }
         }
 
         order.setStatus(newStatus);
         return mapToDto(deliveryOrderRepository.save(order));
+    }
+
+    private void deductReturnedOrderItems(DeliveryOrder order) {
+        Map<Long, StockBatch> batchesById = new HashMap<>();
+        Map<Long, Integer> quantitiesByBatchId = new HashMap<>();
+
+        for (DeliveryOrderItem item : order.getItems()) {
+            StockBatch batch = item.getBatch();
+            batchesById.put(batch.getId(), batch);
+            quantitiesByBatchId.merge(batch.getId(), item.getQuantity(), Integer::sum);
+        }
+
+        for (Map.Entry<Long, Integer> entry : quantitiesByBatchId.entrySet()) {
+            StockBatch batch = batchesById.get(entry.getKey());
+            if (batch.getQuantityRemaining() < entry.getValue()) {
+                throw new RuntimeException("Cannot change returned order status: insufficient stock in batch "
+                        + batch.getId() + ". Available: " + batch.getQuantityRemaining()
+                        + ", required: " + entry.getValue());
+            }
+        }
+
+        for (Map.Entry<Long, Integer> entry : quantitiesByBatchId.entrySet()) {
+            StockBatch batch = batchesById.get(entry.getKey());
+            batch.setQuantityRemaining(batch.getQuantityRemaining() - entry.getValue());
+            stockBatchRepository.save(batch);
+        }
     }
 
     @Transactional

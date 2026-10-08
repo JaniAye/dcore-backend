@@ -216,5 +216,6 @@ export interface ProfitBreakdownDto {
   totalSales: number;
   totalCostOfSales: number;
   totalMiscExpenses: number;
+  returnedDeliveryFees: number;
   netProfit: number;
 }
