@@ -82,7 +82,8 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
 
   const filteredBatches = batches.filter(batch => {
     const query = batchSearch.trim().toLowerCase();
-    return !query || batch.productName.toLowerCase().includes(query);
+    return batch.quantityRemaining > 0
+      && (!query || batch.productName.toLowerCase().includes(query));
   });
   const paginatedProducts = filteredProducts.slice((productPage - 1) * inventoryPageSize, productPage * inventoryPageSize);
   const paginatedBatches = filteredBatches.slice((batchPage - 1) * inventoryPageSize, batchPage * inventoryPageSize);
