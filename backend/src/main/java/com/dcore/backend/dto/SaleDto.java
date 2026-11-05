@@ -23,6 +23,7 @@ public class SaleDto {
     private String discountReason;
     private Boolean isInternal;
     private String internalReason;
+    private Boolean cancelled;
     private LocalDateTime createdAt;
     private List<SaleItemDto> items;
     private List<PaymentDto> payments;

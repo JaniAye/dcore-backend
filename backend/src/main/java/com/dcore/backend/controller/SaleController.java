@@ -42,6 +42,16 @@ public class SaleController {
     public ResponseEntity<SaleDto> getSaleById(@PathVariable Long id) {
         return ResponseEntity.ok(saleService.getSaleById(id));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<SaleDto> updateSale(@PathVariable Long id, @RequestBody SaleRequest request) {
+        return ResponseEntity.ok(saleService.updateSale(id, request));
+    }
+
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<SaleDto> cancelSale(@PathVariable Long id) {
+        return ResponseEntity.ok(saleService.cancelSale(id));
+    }
     
     @PostMapping("/payments")
     public ResponseEntity<PaymentDto> addPayment(@RequestBody PaymentRequest request) {

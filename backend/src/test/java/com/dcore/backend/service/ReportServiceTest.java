@@ -43,6 +43,30 @@ class ReportServiceTest {
         assertEquals(new BigDecimal("15"), report.getNetProfit());
     }
 
+        @Test
+        void cancelledInvoicesDoNotCountAsSalesOrCostOfSales() {
+                SaleDto cancelledSale = SaleDto.builder()
+                                .createdAt(LocalDateTime.of(2026, 10, 2, 12, 0))
+                                .finalAmount(new BigDecimal("50"))
+                                .isInternal(false)
+                                .cancelled(true)
+                                .items(List.of(com.dcore.backend.dto.SaleItemDto.builder()
+                                                .quantity(1)
+                                                .subtotal(new BigDecimal("50"))
+                                                .purchasePrice(new BigDecimal("20"))
+                                                .build()))
+                                .build();
+                when(saleService.getAllSales()).thenReturn(List.of(cancelledSale));
+                when(deliveryOrderService.getAllOrders()).thenReturn(List.of());
+                when(miscExpenseService.getAllExpenses()).thenReturn(List.of());
+
+                var report = reportService.getMonthlyProfit(2026, 10);
+
+                assertEquals(BigDecimal.ZERO, report.getTotalSales());
+                assertEquals(BigDecimal.ZERO, report.getTotalCostOfSales());
+                assertEquals(BigDecimal.ZERO, report.getNetProfit());
+        }
+
     private DeliveryOrderDto deliveryOrder(DeliveryOrder.OrderStatus status, String cod,
             String fee, String purchasePrice, int quantity) {
         return DeliveryOrderDto.builder()

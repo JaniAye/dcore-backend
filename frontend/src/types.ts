@@ -156,6 +156,7 @@ export interface SaleDto {
   discountReason?: string;
   isInternal?: boolean;
   internalReason?: string;
+  cancelled?: boolean;
   createdAt: string;
   items: SaleItemDto[];
   payments: PaymentDto[];

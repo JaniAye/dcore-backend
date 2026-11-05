@@ -1,13 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, CalendarDays, Receipt, Eye, X, Printer, Download } from 'lucide-react';
+import { Search, Receipt, Eye, X, Printer, Download, Pencil, Ban, Plus, Trash2, Save } from 'lucide-react';
 import { api } from '../services/api';
-import { CustomerDto, SaleDto } from '../types';
+import { CustomerDto, ProductDto, SaleDto } from '../types';
 import { TableLoader } from './TableLoader';
 import { Pagination } from './Pagination';
 import { formatCurrency } from '../utils/format';
 import { generateBillPdf, printBill } from '../utils/billGenerator';
 
 type FilterRange = 'today' | 'this_week' | 'this_month' | 'this_year' | 'custom';
+type EditableInvoiceItem = {
+  productId?: number;
+  productName: string;
+  quantity: number;
+  originalPrice: number;
+  unitPrice: number;
+  baseCost?: number;
+  customDescription?: string;
+};
 
 interface InvoicesProps {
   searchFilter?: string;
@@ -17,15 +26,18 @@ interface InvoicesProps {
 export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter }) => {
   const [sales, setSales] = useState<SaleDto[]>([]);
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
+  const [products, setProducts] = useState<ProductDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState(searchFilter || '');
-  const [selectedRange, setSelectedRange] = useState<FilterRange>('this_week');
+  const [selectedRange, setSelectedRange] = useState<FilterRange>('this_year');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedSale, setSelectedSale] = useState<SaleDto | null>(null);
   const [paymentTypeFilter, setPaymentTypeFilter] = useState(paymentFilter || 'ALL');
   const [invoicePage, setInvoicePage] = useState(1);
+  const [editingSaleId, setEditingSaleId] = useState<number | null>(null);
+  const [editItems, setEditItems] = useState<EditableInvoiceItem[]>([]);
   const invoicePageSize = 10;
 
   useEffect(() => {
@@ -68,11 +80,80 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
 
     const paymentMethods = Array.from(new Set(
       sale.payments
+        .filter(payment => payment.amount > 0 && payment.paymentMethod !== 'REFUND')
         .map(payment => payment.paymentMethod)
         .filter(paymentMethod => paymentMethod !== 'CREDIT')
     ));
 
     return paymentMethods.length === 1 ? paymentMethods[0] : 'PAID';
+  };
+
+  const updateSaleInList = (updatedSale: SaleDto) => {
+    setSales(currentSales => currentSales.map(sale => sale.id === updatedSale.id ? updatedSale : sale));
+    setSelectedSale(updatedSale);
+  };
+
+  const startEditing = async (sale: SaleDto) => {
+    try {
+      const availableProducts = products.length > 0 ? products : await api.products.getAll();
+      setProducts(availableProducts);
+      setEditItems((sale.items || []).map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        originalPrice: item.unitPrice,
+        unitPrice: item.quantity > 0
+          ? (item.subtotal ?? item.subTotal ?? item.unitPrice * item.quantity) / item.quantity
+          : item.unitPrice,
+        baseCost: item.purchasePrice,
+        customDescription: item.description
+      })));
+      setSelectedSale(sale);
+      setEditingSaleId(sale.id);
+      setError('');
+    } catch {
+      setError('Unable to load products for invoice editing.');
+    }
+  };
+
+  const saveInvoice = async () => {
+    if (!selectedSaleDetails || editItems.length === 0) return;
+    try {
+      const updatedSale = await api.sales.update(selectedSaleDetails.id, {
+        items: editItems.map(item => ({
+          productId: item.productId,
+          customItemName: item.productId ? undefined : item.productName,
+          customDescription: item.customDescription,
+          baseCost: item.baseCost,
+          sellingPrice: item.unitPrice,
+          quantity: item.quantity,
+          discountType: 'NONE',
+          discountValue: 0,
+          originalPrice: item.originalPrice,
+          overridePrice: item.unitPrice
+        })),
+        discountLevel: selectedSaleDetails.discountLevel || 'NONE',
+        discountReason: selectedSaleDetails.discountReason,
+        isInternal: selectedSaleDetails.isInternal
+      });
+      updateSaleInList(updatedSale);
+      setEditingSaleId(null);
+      setError('');
+    } catch (err: any) {
+      setError(err.response?.data?.error || err.response?.data?.message || 'Unable to update this invoice.');
+    }
+  };
+
+  const cancelInvoice = async (sale: SaleDto) => {
+    if (!window.confirm(`Cancel invoice ${sale.invoiceId}? Stock will be returned and its sales and profit removed from reports.`)) return;
+    try {
+      const cancelledSale = await api.sales.cancel(sale.id);
+      updateSaleInList(cancelledSale);
+      setEditingSaleId(null);
+      setError('');
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Unable to cancel this invoice.');
+    }
   };
 
   const filteredSales = useMemo(() => {
@@ -243,6 +324,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <Receipt size={14} color="var(--accent-primary)" />
                           <strong>{sale.invoiceId}</strong>
+                          {sale.cancelled && <span className="badge badge-danger">Cancelled</span>}
                         </div>
                       </td>
                       <td>
@@ -266,6 +348,30 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                           >
                             <Eye size={13} /> View
                           </button>
+                          {!sale.cancelled && <>
+
+                          {/* Removed the edit option due to multiple errors before enable fix errors*/}
+                            {/* <button
+                              className="btn btn-secondary"
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); void startEditing(sale); }}
+                              title="Edit invoice"
+                              aria-label={`Edit ${sale.invoiceId}`}
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem' }}
+                            > */}
+                              {/* <Pencil size={13} /> Edit */}
+                            {/* </button> */}
+                            <button
+                              className="btn btn-secondary"
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); void cancelInvoice(sale); }}
+                              title="Cancel invoice and return stock"
+                              aria-label={`Cancel ${sale.invoiceId}`}
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem', color: 'var(--accent-danger)' }}
+                            >
+                              <Ban size={13} /> Cancel
+                            </button>
+                          </>}
                           <button
                             className="btn btn-secondary"
                             type="button"
@@ -304,7 +410,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
         {selectedSaleDetails && <div
           role="dialog"
           aria-modal="true"
-          onClick={() => setSelectedSale(null)}
+          onClick={() => { setSelectedSale(null); setEditingSaleId(null); }}
           style={{
             position: 'fixed',
             inset: 0,
@@ -318,6 +424,11 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
         >
           <div className="glass-panel" onClick={(event) => event.stopPropagation()} style={{ padding: '1rem', width: '100%', maxWidth: '680px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="flex-col gap-3">
+              {error && (
+                <div role="alert" className="glass-card" style={{ color: 'var(--accent-danger)' }}>
+                  {error}
+                </div>
+              )}
               <div className="flex justify-between align-center" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div>
                   <h3>{selectedSaleDetails.invoiceId}</h3>
@@ -326,8 +437,10 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                   </p>
                 </div>
                 <div className="flex align-center gap-2">
-                  <div className="badge badge-info">{new Date(selectedSaleDetails.createdAt).toLocaleDateString()}</div>
-                  <button type="button" className="btn btn-outline" onClick={() => setSelectedSale(null)} aria-label="Close invoice details" title="Close invoice details">
+                  <div className={`badge ${selectedSaleDetails.cancelled ? 'badge-danger' : 'badge-info'}`}>
+                    {selectedSaleDetails.cancelled ? 'Cancelled' : new Date(selectedSaleDetails.createdAt).toLocaleDateString()}
+                  </div>
+                  <button type="button" className="btn btn-outline" onClick={() => { setSelectedSale(null); setEditingSaleId(null); }} aria-label="Close invoice details" title="Close invoice details">
                     <X size={16} />
                   </button>
                 </div>
@@ -339,10 +452,20 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                 <div className="flex justify-between"><span>Total before discount</span><strong>{formatCurrency(selectedSaleDetails.totalAmount)}</strong></div>
                 <div className="flex justify-between"><span>Discount</span><strong className="text-danger">-{formatCurrency(selectedSaleDetails.discountAmount)}</strong></div>
                 <div className="flex justify-between"><span>Final amount</span><strong className="text-accent">{formatCurrency(selectedSaleDetails.finalAmount)}</strong></div>
+                <div className="flex justify-between"><span>Paid (net)</span><strong>{formatCurrency(selectedSaleDetails.payments.reduce((total, payment) => total + payment.amount, 0))}</strong></div>
+                {selectedSaleDetails.payments.some(payment => payment.amount < 0) && (
+                  <div className="flex justify-between"><span>Refund adjustment</span><strong className="text-warning">{formatCurrency(selectedSaleDetails.payments.filter(payment => payment.amount < 0).reduce((total, payment) => total + Math.abs(payment.amount), 0))}</strong></div>
+                )}
                 <div className="flex justify-between"><span>Outstanding</span><strong className={selectedSaleDetails.outstandingBalance > 0 ? 'text-warning' : 'text-success'}>{formatCurrency(selectedSaleDetails.outstandingBalance)}</strong></div>
               </div>
 
-              <div className="flex gap-2 justify-end" style={{ marginTop: '0.25rem', flexWrap: 'wrap' }}>
+              {!selectedSaleDetails.cancelled && editingSaleId !== selectedSaleDetails.id && <div className="flex gap-2 justify-end" style={{ marginTop: '0.25rem', flexWrap: 'wrap' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => void startEditing(selectedSaleDetails)}>
+                  <Pencil size={14} /> Edit Invoice
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => void cancelInvoice(selectedSaleDetails)} style={{ color: 'var(--accent-danger)' }}>
+                  <Ban size={14} /> Cancel Invoice
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -373,11 +496,76 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                 >
                   <Printer size={14} /> Print Bill
                 </button>
-              </div>
+              </div>}
 
               <div>
-                <h4 style={{ marginBottom: '0.75rem' }}>Items</h4>
-                <div className="flex-col gap-2">
+                <div className="flex justify-between align-center" style={{ marginBottom: '0.75rem', gap: '1rem', flexWrap: 'wrap' }}>
+                  <h4>Items</h4>
+                  {editingSaleId === selectedSaleDetails.id && (
+                    <select
+                      className="form-select"
+                      aria-label="Add product to invoice"
+                      value=""
+                      onChange={(event) => {
+                        const product = products.find(candidate => candidate.id === Number(event.target.value));
+                        if (!product) return;
+                        setEditItems(current => [...current, {
+                          productId: product.id,
+                          productName: product.name,
+                          quantity: 1,
+                          originalPrice: product.standardPrice,
+                          unitPrice: product.standardPrice
+                        }]);
+                      }}
+                      style={{ width: 'auto', minWidth: '220px' }}
+                    >
+                      <option value="">Add product...</option>
+                      {products.filter(product => product.active && product.totalStock > 0).map(product => (
+                        <option key={product.id} value={product.id}>{product.name} ({product.totalStock} in stock)</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {editingSaleId === selectedSaleDetails.id ? (
+                  <div className="flex-col gap-2">
+                    {editItems.map((item, index) => (
+                      <div key={`${item.productId ?? item.productName}-${index}`} className="glass-card" style={{ padding: '0.85rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(130px, 1fr) repeat(2, minmax(90px, 130px)) auto', alignItems: 'end', gap: '0.6rem' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <label className="form-label">Item</label>
+                            <div style={{ overflowWrap: 'anywhere' }}><strong>{item.productName}</strong></div>
+                          </div>
+                          <div>
+                            <label className="form-label">Quantity</label>
+                            <input className="form-input" type="number" min="1" step="1" value={item.quantity}
+                              onChange={event => setEditItems(current => current.map((line, lineIndex) => lineIndex === index
+                                ? { ...line, quantity: Math.max(1, Number(event.target.value)) } : line))} />
+                          </div>
+                          <div>
+                            <label className="form-label">Unit price</label>
+                            <input className="form-input" type="number" min="0" step="0.01" value={item.unitPrice}
+                              onChange={event => setEditItems(current => current.map((line, lineIndex) => lineIndex === index
+                                ? { ...line, unitPrice: Math.max(0, Number(event.target.value)) } : line))} />
+                          </div>
+                          <button type="button" className="btn btn-secondary" title="Remove item" aria-label={`Remove ${item.productName}`}
+                            disabled={editItems.length === 1}
+                            onClick={() => setEditItems(current => current.filter((_, lineIndex) => lineIndex !== index))}>
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between align-center" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
+                      <strong>Revised total: {formatCurrency(editItems.reduce((total, item) => total + item.unitPrice * item.quantity, 0))}</strong>
+                      <div className="flex gap-2">
+                        <button type="button" className="btn btn-secondary" onClick={() => setEditingSaleId(null)}>Discard</button>
+                        <button type="button" className="btn btn-primary" onClick={() => void saveInvoice()}>
+                          <Save size={14} /> Save Changes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : <div className="flex-col gap-2">
                   {selectedSaleDetails.items?.map((item, index) => {
                     const disc = item.discountAmount || 0;
                     const sub = item.subtotal ?? item.subTotal ?? (item.unitPrice * item.quantity - disc);
@@ -407,7 +595,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                       </div>
                     );
                   })}
-                </div>
+                </div>}
               </div>
             </div>
           </div>

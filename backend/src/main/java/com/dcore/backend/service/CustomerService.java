@@ -69,6 +69,7 @@ public class CustomerService {
                 .collect(Collectors.toList());
 
         BigDecimal totalPaid = payments.stream()
+                .filter(payment -> !Boolean.TRUE.equals(payment.getSale().getCancelled()))
                 .map(Payment::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -79,7 +80,9 @@ public class CustomerService {
                 .totalAmount(sale.getTotalAmount())
                 .discountAmount(sale.getDiscountAmount())
                 .createdAt(sale.getCreatedAt())
-                .outstandingBalance(sale.getFinalAmount().subtract(totalPaid).max(BigDecimal.ZERO))
+                .outstandingBalance(Boolean.TRUE.equals(sale.getCancelled())
+                        ? BigDecimal.ZERO : sale.getFinalAmount().subtract(totalPaid).max(BigDecimal.ZERO))
+                .cancelled(sale.getCancelled())
                 .sellerName(sale.getSeller().getName())
                 .build();
     }
@@ -88,12 +91,14 @@ public class CustomerService {
         List<Sale> sales = saleRepository.findByCustomerIdOrderByCreatedAtDesc(customer.getId());
 
         BigDecimal totalSalesAmt = sales.stream()
+                .filter(sale -> !Boolean.TRUE.equals(sale.getCancelled()))
                 .map(Sale::getFinalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         List<Payment> payments = paymentRepository.findBySale_Customer_Id(customer.getId());
 
         BigDecimal totalPayments = payments.stream()
+                .filter(payment -> !Boolean.TRUE.equals(payment.getSale().getCancelled()))
                 .map(Payment::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 

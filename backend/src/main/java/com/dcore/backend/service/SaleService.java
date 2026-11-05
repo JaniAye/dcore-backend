@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 public class SaleService {
 
     private final SaleRepository saleRepository;
+    private final SaleItemRepository saleItemRepository;
     private final ProductRepository productRepository;
     private final StockBatchRepository stockBatchRepository;
     private final CustomerRepository customerRepository;
@@ -71,152 +72,11 @@ public class SaleService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        BigDecimal totalAmountStr = BigDecimal.ZERO; // Track total before any discounts
-        BigDecimal totalDiscountAmount = BigDecimal.ZERO;
-        List<SaleItem> saleItems = new ArrayList<>();
-
-        for (SaleItemRequest itemReq : request.getItems()) {
-            if (itemReq.getProductId() == null) {
-            if (itemReq.getCustomItemName() == null || itemReq.getCustomItemName().isBlank()
-                || itemReq.getQuantity() == null || itemReq.getQuantity() < 1
-                || itemReq.getBaseCost() == null || itemReq.getBaseCost().compareTo(BigDecimal.ZERO) < 0
-                || itemReq.getSellingPrice() == null || itemReq.getSellingPrice().compareTo(BigDecimal.ZERO) < 0) {
-                throw new RuntimeException("Custom items require a name, positive quantity, and valid cost and selling price");
-            }
-
-            BigDecimal originalUnitPrice = itemReq.getOriginalPrice() != null
-                ? itemReq.getOriginalPrice() : itemReq.getSellingPrice();
-            BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null
-                ? itemReq.getOverridePrice() : itemReq.getSellingPrice();
-            if (Boolean.TRUE.equals(request.getIsInternal())) {
-                finalUnitPrice = BigDecimal.ZERO;
-            }
-            if (!Boolean.TRUE.equals(request.getIsInternal())
-                && finalUnitPrice.compareTo(itemReq.getBaseCost()) < 0) {
-                throw new RuntimeException("Selling price of " + finalUnitPrice
-                    + " is below base cost of " + itemReq.getBaseCost()
-                    + " for item " + itemReq.getCustomItemName());
-            }
-
-            BigDecimal quantity = BigDecimal.valueOf(itemReq.getQuantity());
-            BigDecimal discountAmount = originalUnitPrice.compareTo(finalUnitPrice) > 0
-                ? originalUnitPrice.subtract(finalUnitPrice).multiply(quantity) : BigDecimal.ZERO;
-            SaleItem saleItem = SaleItem.builder()
-                .sale(sale)
-                .customItemName(itemReq.getCustomItemName().trim())
-                .customDescription(itemReq.getCustomDescription())
-                .quantity(itemReq.getQuantity())
-                .unitPrice(originalUnitPrice)
-                .purchasePrice(itemReq.getBaseCost())
-                .discountType("OVERRIDE")
-                .discountValue(BigDecimal.ZERO)
-                .discountAmount(discountAmount)
-                .subtotal(finalUnitPrice.multiply(quantity))
-                .build();
-            saleItems.add(saleItem);
-            totalAmountStr = totalAmountStr.add(originalUnitPrice.multiply(quantity));
-            totalDiscountAmount = totalDiscountAmount.add(discountAmount);
-            continue;
-            }
-
-            Product product = productRepository.findById(itemReq.getProductId())
-                    .orElseThrow(() -> new RuntimeException("Product not found"));
-
-            int remainingQtyToSell = itemReq.getQuantity();
-            List<StockBatch> availableBatches = stockBatchRepository.findAvailableBatchesForProduct(product.getId());
-
-            // Standard base price is now irrelevant as we use the batch's selling price or override
-
-            // Pricing and discounts are now handled per batch part in the inner loop
-
-            for (StockBatch batch : availableBatches) {
-                if (remainingQtyToSell <= 0)
-                    break;
-
-                int qtyFromBatch = Math.min(batch.getQuantityRemaining(), remainingQtyToSell);
-                batch.setQuantityRemaining(batch.getQuantityRemaining() - qtyFromBatch);
-                stockBatchRepository.save(batch);
-
-                // Pro-rate the item-level discount across batches if necessary (though usually
-                // simple)
-                // For simplicity, we just store the totals in the SaleItem
-                // Baseline selling price determination:
-                // 1. Explicit originalPrice from request if provided (e.g. Retail standard or Wholesale price chosen at POS)
-                // 2. Product's standard retail price
-                // 3. Batch's recorded selling price
-                // 4. Product's wholesale price fallback
-                BigDecimal baseSellingPrice;
-                if (itemReq.getOriginalPrice() != null && itemReq.getOriginalPrice().compareTo(BigDecimal.ZERO) > 0) {
-                    baseSellingPrice = itemReq.getOriginalPrice();
-                } else if (product.getStandardPrice() != null && product.getStandardPrice().compareTo(BigDecimal.ZERO) > 0) {
-                    baseSellingPrice = product.getStandardPrice();
-                } else if (batch.getSellingPrice() != null && batch.getSellingPrice().compareTo(BigDecimal.ZERO) > 0) {
-                    baseSellingPrice = batch.getSellingPrice();
-                } else {
-                    baseSellingPrice = product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO;
-                }
-
-                BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null ? itemReq.getOverridePrice() : baseSellingPrice;
-                
-                if (Boolean.TRUE.equals(request.getIsInternal())) {
-                    finalUnitPrice = BigDecimal.ZERO;
-                }
-
-                // Landed cost calculation for floor validation
-                List<BatchExpense> expenses = batchExpenseRepository.findByBatchId(batch.getId());
-                BigDecimal totalExpenses = expenses.stream()
-                        .map(BatchExpense::getAmount)
-                        .reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal totalBaseCost = batch.getBaseCost().multiply(BigDecimal.valueOf(batch.getQuantityInitial()));
-                BigDecimal totalLandedCost = totalBaseCost.add(totalExpenses);
-                BigDecimal landedCost = batch.getQuantityInitial() > 0
-                        ? totalLandedCost.divide(BigDecimal.valueOf(batch.getQuantityInitial()), 2, RoundingMode.HALF_UP)
-                        : batch.getBaseCost();
-
-                // Cost Floor Validation (only for non-internal sales)
-                if (!Boolean.TRUE.equals(request.getIsInternal()) && finalUnitPrice.compareTo(landedCost) < 0) {
-                    throw new RuntimeException("Selling price of " + finalUnitPrice + " is below landed cost of " + landedCost + " for product " + product.getName());
-                }
-
-                // Discount logic: any difference from original selling price is treated as a discount
-                BigDecimal originalUnitPrice = baseSellingPrice;
-                BigDecimal batchDiscountAmount = BigDecimal.ZERO;
-                if (finalUnitPrice.compareTo(baseSellingPrice) < 0) {
-                    batchDiscountAmount = baseSellingPrice.subtract(finalUnitPrice).multiply(BigDecimal.valueOf(qtyFromBatch));
-                } else if (finalUnitPrice.compareTo(baseSellingPrice) > 0) {
-                    originalUnitPrice = finalUnitPrice;
-                }
-
-                BigDecimal itemSubtotal = finalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch));
-
-                SaleItem saleItem = SaleItem.builder()
-                        .sale(sale)
-                        .product(product)
-                        .batch(batch)
-                        .quantity(qtyFromBatch)
-                        .unitPrice(originalUnitPrice)
-                        .purchasePrice(landedCost)
-                        .discountType("OVERRIDE")
-                        .discountValue(BigDecimal.ZERO)
-                        .discountAmount(batchDiscountAmount)
-                        .subtotal(itemSubtotal)
-                        .build();
-
-                saleItems.add(saleItem);
-                totalAmountStr = totalAmountStr.add(originalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch)));
-                totalDiscountAmount = totalDiscountAmount.add(batchDiscountAmount);
-                remainingQtyToSell -= qtyFromBatch;
-            }
-
-            if (remainingQtyToSell > 0) {
-                throw new RuntimeException("Not enough stock for product " + product.getName());
-            }
-        }
-
-        sale.setItems(saleItems);
-        sale.setTotalAmount(totalAmountStr);
-        sale.setDiscountAmount(totalDiscountAmount);
-        sale.setFinalAmount(totalAmountStr.subtract(totalDiscountAmount));
+        SaleTotals totals = buildSaleItems(sale, request);
+        sale.setItems(totals.items());
+        sale.setTotalAmount(totals.totalAmount());
+        sale.setDiscountAmount(totals.discountAmount());
+        sale.setFinalAmount(totals.finalAmount());
 
         Sale savedSale = saleRepository.save(sale);
 
@@ -246,6 +106,187 @@ public class SaleService {
         return mapToDto(sale);
     }
 
+    @Transactional
+    public SaleDto updateSale(Long id, SaleRequest request) {
+        Sale sale = saleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Sale not found"));
+        if (Boolean.TRUE.equals(sale.getCancelled())) {
+            throw new RuntimeException("Cancelled invoices cannot be edited");
+        }
+
+        BigDecimal totalPaid = paymentRepository.findAll().stream()
+                .filter(payment -> payment.getSale().getId().equals(sale.getId()))
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        restoreStock(sale);
+        saleItemRepository.deleteAll(sale.getItems());
+        SaleTotals totals = buildSaleItems(sale, request);
+        if (totalPaid.compareTo(totals.finalAmount()) > 0) {
+            Payment refundAdjustment = Payment.builder()
+                .sale(sale)
+                .amount(totals.finalAmount().subtract(totalPaid))
+                .paymentMethod("REFUND")
+                .createdAt(LocalDateTime.now())
+                .build();
+            paymentRepository.save(refundAdjustment);
+        }
+
+        sale.setItems(totals.items());
+        sale.setTotalAmount(totals.totalAmount());
+        sale.setDiscountAmount(totals.discountAmount());
+        sale.setFinalAmount(totals.finalAmount());
+        return mapToDto(saleRepository.save(sale));
+    }
+
+    @Transactional
+    public SaleDto cancelSale(Long id) {
+        Sale sale = saleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Sale not found"));
+        if (!Boolean.TRUE.equals(sale.getCancelled())) {
+            restoreStock(sale);
+            sale.setCancelled(true);
+            saleRepository.save(sale);
+        }
+        return mapToDto(sale);
+    }
+
+    private SaleTotals buildSaleItems(Sale sale, SaleRequest request) {
+        if (request.getItems() == null || request.getItems().isEmpty()) {
+            throw new RuntimeException("An invoice must contain at least one item");
+        }
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        BigDecimal totalDiscountAmount = BigDecimal.ZERO;
+        List<SaleItem> saleItems = new ArrayList<>();
+
+        for (SaleItemRequest itemReq : request.getItems()) {
+            if (itemReq.getQuantity() == null || itemReq.getQuantity() < 1) {
+                throw new RuntimeException("Item quantity must be at least one");
+            }
+
+            if (itemReq.getProductId() == null) {
+                if (itemReq.getCustomItemName() == null || itemReq.getCustomItemName().isBlank()
+                        || itemReq.getBaseCost() == null || itemReq.getBaseCost().compareTo(BigDecimal.ZERO) < 0
+                        || itemReq.getSellingPrice() == null || itemReq.getSellingPrice().compareTo(BigDecimal.ZERO) < 0) {
+                    throw new RuntimeException("Custom items require a name and valid cost and selling price");
+                }
+
+                BigDecimal originalUnitPrice = itemReq.getOriginalPrice() != null
+                        ? itemReq.getOriginalPrice() : itemReq.getSellingPrice();
+                BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null
+                        ? itemReq.getOverridePrice() : itemReq.getSellingPrice();
+                if (Boolean.TRUE.equals(sale.getIsInternal())) {
+                    finalUnitPrice = BigDecimal.ZERO;
+                }
+                if (!Boolean.TRUE.equals(sale.getIsInternal())
+                        && finalUnitPrice.compareTo(itemReq.getBaseCost()) < 0) {
+                    throw new RuntimeException("Selling price cannot be below cost for item " + itemReq.getCustomItemName());
+                }
+
+                BigDecimal quantity = BigDecimal.valueOf(itemReq.getQuantity());
+                BigDecimal discountAmount = originalUnitPrice.compareTo(finalUnitPrice) > 0
+                        ? originalUnitPrice.subtract(finalUnitPrice).multiply(quantity) : BigDecimal.ZERO;
+                saleItems.add(SaleItem.builder()
+                        .sale(sale)
+                        .customItemName(itemReq.getCustomItemName().trim())
+                        .customDescription(itemReq.getCustomDescription())
+                        .quantity(itemReq.getQuantity())
+                        .unitPrice(originalUnitPrice)
+                        .purchasePrice(itemReq.getBaseCost())
+                        .discountType("OVERRIDE")
+                        .discountValue(BigDecimal.ZERO)
+                        .discountAmount(discountAmount)
+                        .subtotal(finalUnitPrice.multiply(quantity))
+                        .build());
+                totalAmount = totalAmount.add(originalUnitPrice.multiply(quantity));
+                totalDiscountAmount = totalDiscountAmount.add(discountAmount);
+                continue;
+            }
+
+            Product product = productRepository.findById(itemReq.getProductId())
+                    .orElseThrow(() -> new RuntimeException("Product not found"));
+            int remainingQtyToSell = itemReq.getQuantity();
+            List<StockBatch> availableBatches = stockBatchRepository.findAvailableBatchesForProduct(product.getId());
+
+            for (StockBatch batch : availableBatches) {
+                if (remainingQtyToSell <= 0) break;
+                int qtyFromBatch = Math.min(batch.getQuantityRemaining(), remainingQtyToSell);
+                batch.setQuantityRemaining(batch.getQuantityRemaining() - qtyFromBatch);
+                stockBatchRepository.save(batch);
+
+                BigDecimal baseSellingPrice;
+                if (itemReq.getOriginalPrice() != null && itemReq.getOriginalPrice().compareTo(BigDecimal.ZERO) > 0) {
+                    baseSellingPrice = itemReq.getOriginalPrice();
+                } else if (product.getStandardPrice() != null && product.getStandardPrice().compareTo(BigDecimal.ZERO) > 0) {
+                    baseSellingPrice = product.getStandardPrice();
+                } else if (batch.getSellingPrice() != null && batch.getSellingPrice().compareTo(BigDecimal.ZERO) > 0) {
+                    baseSellingPrice = batch.getSellingPrice();
+                } else {
+                    baseSellingPrice = product.getWholesalePrice() != null ? product.getWholesalePrice() : BigDecimal.ZERO;
+                }
+
+                BigDecimal finalUnitPrice = itemReq.getOverridePrice() != null
+                        ? itemReq.getOverridePrice() : baseSellingPrice;
+                if (Boolean.TRUE.equals(sale.getIsInternal())) finalUnitPrice = BigDecimal.ZERO;
+
+                List<BatchExpense> expenses = batchExpenseRepository.findByBatchId(batch.getId());
+                BigDecimal totalExpenses = expenses.stream().map(BatchExpense::getAmount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal totalBaseCost = batch.getBaseCost().multiply(BigDecimal.valueOf(batch.getQuantityInitial()));
+                BigDecimal totalLandedCost = totalBaseCost.add(totalExpenses);
+                BigDecimal landedCost = batch.getQuantityInitial() > 0
+                        ? totalLandedCost.divide(BigDecimal.valueOf(batch.getQuantityInitial()), 2, RoundingMode.HALF_UP)
+                        : batch.getBaseCost();
+
+                if (!Boolean.TRUE.equals(sale.getIsInternal()) && finalUnitPrice.compareTo(landedCost) < 0) {
+                    throw new RuntimeException("Selling price cannot be below landed cost for product " + product.getName());
+                }
+
+                BigDecimal originalUnitPrice = baseSellingPrice;
+                BigDecimal batchDiscountAmount = BigDecimal.ZERO;
+                if (finalUnitPrice.compareTo(baseSellingPrice) < 0) {
+                    batchDiscountAmount = baseSellingPrice.subtract(finalUnitPrice).multiply(BigDecimal.valueOf(qtyFromBatch));
+                } else if (finalUnitPrice.compareTo(baseSellingPrice) > 0) {
+                    originalUnitPrice = finalUnitPrice;
+                }
+                saleItems.add(SaleItem.builder()
+                        .sale(sale)
+                        .product(product)
+                        .batch(batch)
+                        .quantity(qtyFromBatch)
+                        .unitPrice(originalUnitPrice)
+                        .purchasePrice(landedCost)
+                        .discountType("OVERRIDE")
+                        .discountValue(BigDecimal.ZERO)
+                        .discountAmount(batchDiscountAmount)
+                        .subtotal(finalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch)))
+                        .build());
+                totalAmount = totalAmount.add(originalUnitPrice.multiply(BigDecimal.valueOf(qtyFromBatch)));
+                totalDiscountAmount = totalDiscountAmount.add(batchDiscountAmount);
+                remainingQtyToSell -= qtyFromBatch;
+            }
+            if (remainingQtyToSell > 0) {
+                throw new RuntimeException("Not enough stock for product " + product.getName());
+            }
+        }
+
+        return new SaleTotals(saleItems, totalAmount, totalDiscountAmount, totalAmount.subtract(totalDiscountAmount));
+    }
+
+    private void restoreStock(Sale sale) {
+        for (SaleItem item : sale.getItems()) {
+            if (item.getBatch() != null) {
+                StockBatch batch = item.getBatch();
+                batch.setQuantityRemaining(batch.getQuantityRemaining() + item.getQuantity());
+                stockBatchRepository.save(batch);
+            }
+        }
+    }
+
+    private record SaleTotals(List<SaleItem> items, BigDecimal totalAmount,
+            BigDecimal discountAmount, BigDecimal finalAmount) {}
+
     public List<SaleDto> getAllSales() {
         return saleRepository.findAll().stream()
                 .map(this::mapToDto)
@@ -268,6 +309,9 @@ public class SaleService {
     public PaymentDto addPayment(PaymentRequest request) {
         Sale sale = saleRepository.findById(request.getSaleId())
                 .orElseThrow(() -> new RuntimeException("Sale not found"));
+        if (Boolean.TRUE.equals(sale.getCancelled())) {
+            throw new RuntimeException("Payments cannot be added to a cancelled invoice");
+        }
 
         if (request.getAmount() == null || request.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
             throw new RuntimeException("Payment amount must be greater than zero");
@@ -326,6 +370,9 @@ public class SaleService {
 
         BigDecimal totalPaid = paymentsEntity.stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal outstandingBalance = sale.getFinalAmount().subtract(totalPaid);
+        if (Boolean.TRUE.equals(sale.getCancelled())) {
+            outstandingBalance = BigDecimal.ZERO;
+        }
 
         return SaleDto.builder()
                 .id(sale.getId())
@@ -341,6 +388,7 @@ public class SaleService {
                 .discountReason(sale.getDiscountReason())
                 .isInternal(sale.getIsInternal())
                 .internalReason(sale.getInternalReason())
+                .cancelled(sale.getCancelled())
                 .createdAt(sale.getCreatedAt())
                 .items(items)
                 .payments(payments)

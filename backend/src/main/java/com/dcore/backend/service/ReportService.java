@@ -26,6 +26,7 @@ public class ReportService {
         // Include POS sales
         BigDecimal posSales = saleService.getAllSales().stream()
                 .filter(s -> !s.getCreatedAt().isBefore(startOfDay) && !s.getCreatedAt().isAfter(endOfDay))
+                .filter(s -> !Boolean.TRUE.equals(s.getCancelled()))
                 .filter(s -> !Boolean.TRUE.equals(s.getIsInternal()))
                 .map(SaleDto::getFinalAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -44,6 +45,7 @@ public class ReportService {
         // 1. POS Revenue and COGS
         BigDecimal posRevenue = saleService.getAllSales().stream()
                 .filter(s -> s.getCreatedAt().getYear() == year && s.getCreatedAt().getMonthValue() == month)
+                .filter(s -> !Boolean.TRUE.equals(s.getCancelled()))
                 .filter(s -> !Boolean.TRUE.equals(s.getIsInternal()))
                 .flatMap(s -> s.getItems().stream())
                 .map(item -> item.getSubtotal())
@@ -51,6 +53,7 @@ public class ReportService {
 
         BigDecimal posCostOfSales = saleService.getAllSales().stream()
                 .filter(s -> s.getCreatedAt().getYear() == year && s.getCreatedAt().getMonthValue() == month)
+                .filter(s -> !Boolean.TRUE.equals(s.getCancelled()))
                 .filter(s -> !Boolean.TRUE.equals(s.getIsInternal()))
                 .flatMap(s -> s.getItems().stream())
                 .map(item -> item.getPurchasePrice() != null
