@@ -259,6 +259,11 @@ export const api = {
       const res = await client.post(`/sales/${id}/cancel`);
       return res.data;
     },
+    setItemCancelled: async (saleId: number, itemId: number, cancelled: boolean): Promise<SaleDto> => {
+      const action = cancelled ? 'cancel' : 'restore';
+      const res = await client.post(`/sales/${saleId}/items/${itemId}/${action}`);
+      return res.data;
+    },
     addPayment: async (data: PaymentRequest): Promise<PaymentDto> => {
       const res = await client.post('/sales/payments', data);
       return res.data;

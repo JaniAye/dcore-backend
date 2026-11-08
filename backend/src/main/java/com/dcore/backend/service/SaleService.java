@@ -119,8 +119,14 @@ public class SaleService {
                 .map(Payment::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        restoreStock(sale);
-        saleItemRepository.deleteAll(sale.getItems());
+        List<SaleItem> cancelledItems = sale.getItems().stream()
+            .filter(item -> Boolean.TRUE.equals(item.getCancelled()))
+            .collect(Collectors.toList());
+        List<SaleItem> activeItems = sale.getItems().stream()
+            .filter(item -> !Boolean.TRUE.equals(item.getCancelled()))
+            .collect(Collectors.toList());
+        restoreStock(activeItems);
+        saleItemRepository.deleteAll(activeItems);
         SaleTotals totals = buildSaleItems(sale, request);
         if (totalPaid.compareTo(totals.finalAmount()) > 0) {
             Payment refundAdjustment = Payment.builder()
@@ -132,7 +138,9 @@ public class SaleService {
             paymentRepository.save(refundAdjustment);
         }
 
-        sale.setItems(totals.items());
+        List<SaleItem> revisedItems = new ArrayList<>(cancelledItems);
+        revisedItems.addAll(totals.items());
+        sale.setItems(revisedItems);
         sale.setTotalAmount(totals.totalAmount());
         sale.setDiscountAmount(totals.discountAmount());
         sale.setFinalAmount(totals.finalAmount());
@@ -144,11 +152,71 @@ public class SaleService {
         Sale sale = saleRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Sale not found"));
         if (!Boolean.TRUE.equals(sale.getCancelled())) {
-            restoreStock(sale);
+            restoreStock(sale.getItems().stream()
+                .filter(item -> !Boolean.TRUE.equals(item.getCancelled()))
+                .collect(Collectors.toList()));
             sale.setCancelled(true);
             saleRepository.save(sale);
         }
         return mapToDto(sale);
+    }
+
+    @Transactional
+    public SaleDto setSaleItemCancelled(Long saleId, Long saleItemId, boolean cancelled) {
+        Sale sale = saleRepository.findById(saleId)
+                .orElseThrow(() -> new RuntimeException("Sale not found"));
+        if (Boolean.TRUE.equals(sale.getCancelled())) {
+            throw new RuntimeException("Items cannot be changed on a cancelled invoice");
+        }
+
+        SaleItem item = sale.getItems().stream()
+                .filter(saleItem -> saleItem.getId().equals(saleItemId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Invoice item not found"));
+        if (Boolean.TRUE.equals(item.getCancelled()) == cancelled) {
+            return mapToDto(sale);
+        }
+
+        StockBatch batch = item.getBatch();
+        if (batch != null) {
+            if (cancelled) {
+                batch.setQuantityRemaining(batch.getQuantityRemaining() + item.getQuantity());
+            } else {
+                if (batch.getQuantityRemaining() < item.getQuantity()) {
+                    throw new RuntimeException("Not enough stock to restore this invoice item");
+                }
+                batch.setQuantityRemaining(batch.getQuantityRemaining() - item.getQuantity());
+            }
+            stockBatchRepository.save(batch);
+        }
+
+        item.setCancelled(cancelled);
+        BigDecimal totalAmount = sale.getItems().stream()
+                .filter(saleItem -> !Boolean.TRUE.equals(saleItem.getCancelled()))
+                .map(saleItem -> saleItem.getUnitPrice().multiply(BigDecimal.valueOf(saleItem.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal discountAmount = sale.getItems().stream()
+                .filter(saleItem -> !Boolean.TRUE.equals(saleItem.getCancelled()))
+                .map(saleItem -> saleItem.getDiscountAmount() != null ? saleItem.getDiscountAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        sale.setTotalAmount(totalAmount);
+        sale.setDiscountAmount(discountAmount);
+        sale.setFinalAmount(totalAmount.subtract(discountAmount));
+
+        BigDecimal totalPaid = paymentRepository.findAll().stream()
+                .filter(payment -> payment.getSale().getId().equals(sale.getId()))
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalPaid.compareTo(sale.getFinalAmount()) > 0) {
+            paymentRepository.save(Payment.builder()
+                    .sale(sale)
+                    .amount(sale.getFinalAmount().subtract(totalPaid))
+                    .paymentMethod("REFUND")
+                    .createdAt(LocalDateTime.now())
+                    .build());
+        }
+
+        return mapToDto(saleRepository.save(sale));
     }
 
     private SaleTotals buildSaleItems(Sale sale, SaleRequest request) {
@@ -274,8 +342,8 @@ public class SaleService {
         return new SaleTotals(saleItems, totalAmount, totalDiscountAmount, totalAmount.subtract(totalDiscountAmount));
     }
 
-    private void restoreStock(Sale sale) {
-        for (SaleItem item : sale.getItems()) {
+    private void restoreStock(List<SaleItem> items) {
+        for (SaleItem item : items) {
             if (item.getBatch() != null) {
                 StockBatch batch = item.getBatch();
                 batch.setQuantityRemaining(batch.getQuantityRemaining() + item.getQuantity());
@@ -355,6 +423,7 @@ public class SaleService {
                 .purchasePrice(i.getPurchasePrice())
                 .discountAmount(i.getDiscountAmount())
                 .subtotal(i.getSubtotal())
+                .cancelled(i.getCancelled())
                 .build()).collect(Collectors.toList());
 
         List<Payment> paymentsEntity = paymentRepository.findAll().stream()

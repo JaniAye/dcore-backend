@@ -48,6 +48,7 @@ public class ReportService {
                 .filter(s -> !Boolean.TRUE.equals(s.getCancelled()))
                 .filter(s -> !Boolean.TRUE.equals(s.getIsInternal()))
                 .flatMap(s -> s.getItems().stream())
+                .filter(item -> !Boolean.TRUE.equals(item.getCancelled()))
                 .map(item -> item.getSubtotal())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -56,6 +57,7 @@ public class ReportService {
                 .filter(s -> !Boolean.TRUE.equals(s.getCancelled()))
                 .filter(s -> !Boolean.TRUE.equals(s.getIsInternal()))
                 .flatMap(s -> s.getItems().stream())
+                .filter(item -> !Boolean.TRUE.equals(item.getCancelled()))
                 .map(item -> item.getPurchasePrice() != null
                         ? item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity()))
                         : BigDecimal.ZERO)

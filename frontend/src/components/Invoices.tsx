@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Receipt, Eye, X, Printer, Download, Pencil, Ban, Plus, Trash2, Save } from 'lucide-react';
+import { Search, Receipt, Eye, X, Printer, Download, Pencil, Ban, Plus, Trash2, Save, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
 import { CustomerDto, ProductDto, SaleDto } from '../types';
 import { TableLoader } from './TableLoader';
@@ -97,7 +97,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
     try {
       const availableProducts = products.length > 0 ? products : await api.products.getAll();
       setProducts(availableProducts);
-      setEditItems((sale.items || []).map(item => ({
+      setEditItems((sale.items || []).filter(item => !item.cancelled).map(item => ({
         productId: item.productId,
         productName: item.productName,
         quantity: item.quantity,
@@ -153,6 +153,17 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
       setError('');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Unable to cancel this invoice.');
+    }
+  };
+
+  const setInvoiceItemCancelled = async (itemId: number | undefined, cancelled: boolean) => {
+    if (!selectedSaleDetails || itemId === undefined) return;
+    try {
+      const updatedSale = await api.sales.setItemCancelled(selectedSaleDetails.id, itemId, cancelled);
+      updateSaleInList(updatedSale);
+      setError('');
+    } catch (err: any) {
+      setError(err.response?.data?.message || err.message || 'Unable to update this invoice item.');
     }
   };
 
@@ -448,7 +459,7 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
 
               <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 <div className="flex justify-between"><span>Seller</span><strong>{selectedSaleDetails.sellerName}</strong></div>
-                <div className="flex justify-between"><span>Items</span><strong>{selectedSaleDetails.items?.length || 0}</strong></div>
+                <div className="flex justify-between"><span>Active items</span><strong>{selectedSaleDetails.items?.filter(item => !item.cancelled).length || 0}</strong></div>
                 <div className="flex justify-between"><span>Total before discount</span><strong>{formatCurrency(selectedSaleDetails.totalAmount)}</strong></div>
                 <div className="flex justify-between"><span>Discount</span><strong className="text-danger">-{formatCurrency(selectedSaleDetails.discountAmount)}</strong></div>
                 <div className="flex justify-between"><span>Final amount</span><strong className="text-accent">{formatCurrency(selectedSaleDetails.finalAmount)}</strong></div>
@@ -460,9 +471,11 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
               </div>
 
               {!selectedSaleDetails.cancelled && editingSaleId !== selectedSaleDetails.id && <div className="flex gap-2 justify-end" style={{ marginTop: '0.25rem', flexWrap: 'wrap' }}>
-                <button type="button" className="btn btn-secondary" onClick={() => void startEditing(selectedSaleDetails)}>
-                  <Pencil size={14} /> Edit Invoice
-                </button>
+                {selectedSaleDetails.items?.some(item => !item.cancelled) && (
+                  <button type="button" className="btn btn-secondary" onClick={() => void startEditing(selectedSaleDetails)}>
+                    <Pencil size={14} /> Edit Invoice
+                  </button>
+                )}
                 <button type="button" className="btn btn-secondary" onClick={() => void cancelInvoice(selectedSaleDetails)} style={{ color: 'var(--accent-danger)' }}>
                   <Ban size={14} /> Cancel Invoice
                 </button>
@@ -570,10 +583,35 @@ export const Invoices: React.FC<InvoicesProps> = ({ searchFilter, paymentFilter 
                     const disc = item.discountAmount || 0;
                     const sub = item.subtotal ?? item.subTotal ?? (item.unitPrice * item.quantity - disc);
                     return (
-                      <div key={`${item.productId}-${index}`} className="glass-card" style={{ padding: '0.85rem' }}>
-                        <div className="flex justify-between align-center">
-                          <strong>{item.productName}</strong>
-                          <span className="badge badge-info">Qty {item.quantity}</span>
+                      <div key={item.id ?? `${item.productId}-${index}`} className="glass-card" style={{
+                        padding: '0.85rem',
+                        background: item.cancelled ? 'rgba(239, 68, 68, 0.12)' : undefined,
+                        borderColor: item.cancelled ? 'var(--accent-danger)' : undefined
+                      }}>
+                        <div className="flex justify-between align-center" style={{ gap: '0.75rem', flexWrap: 'wrap' }}>
+                          <strong style={item.cancelled ? { color: 'var(--accent-danger)', textDecoration: 'line-through' } : undefined}>{item.productName}</strong>
+                          <div className="flex align-center gap-2">
+                            {item.cancelled
+                              ? <span className="badge badge-danger">Cancelled · Qty {item.quantity}</span>
+                              : <span className="badge badge-info">Qty {item.quantity}</span>}
+                            {!selectedSaleDetails.cancelled && (
+                              <button
+                                type="button"
+                                className="btn btn-secondary"
+                                onClick={() => void setInvoiceItemCancelled(item.id, !item.cancelled)}
+                                disabled={item.id === undefined}
+                                aria-label={`${item.cancelled ? 'Restore' : 'Cancel'} ${item.productName}`}
+                                title={item.cancelled ? 'Undo item cancellation' : 'Cancel this item and return stock'}
+                                style={{
+                                  padding: '0.35rem 0.55rem',
+                                  color: item.cancelled ? 'var(--accent-success)' : 'var(--accent-danger)'
+                                }}
+                              >
+                                {item.cancelled ? <RotateCcw size={14} /> : <Ban size={14} />}
+                                {item.cancelled ? 'Undo' : 'Cancel'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                         {item.productCode && (
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Code: {item.productCode}</div>

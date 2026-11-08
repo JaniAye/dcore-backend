@@ -18,4 +18,5 @@ public class SaleItemDto {
     private BigDecimal purchasePrice;
     private BigDecimal discountAmount;
     private BigDecimal subtotal;
+    private Boolean cancelled;
 }

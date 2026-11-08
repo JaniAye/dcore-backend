@@ -45,4 +45,7 @@ public class SaleItem {
 
     @Column(nullable = false)
     private BigDecimal purchasePrice; // Cost per unit at time of sale
+
+    @Builder.Default
+    private Boolean cancelled = false;
 }

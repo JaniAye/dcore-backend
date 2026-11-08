@@ -133,6 +133,7 @@ export interface SaleItemDto {
   subtotal?: number;
   subTotal?: number;
   finalAmount?: number;
+  cancelled?: boolean;
 }
 
 export interface PaymentDto {

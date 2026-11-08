@@ -33,6 +33,7 @@ export const formatDate = (dateStr: string | undefined | null): string => {
  * No server files are created or stored.
  */
 export const generateBillPdf = (sale: SaleDto, options: BillPdfOptions = {}): void => {
+  const activeItems = (sale.items || []).filter(item => !item.cancelled);
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -140,7 +141,7 @@ export const generateBillPdf = (sale: SaleDto, options: BillPdfOptions = {}): vo
   doc.setFontSize(8.5);
   doc.setTextColor(51, 65, 85);
 
-  (sale.items || []).forEach((item, index) => {
+  activeItems.forEach((item, index) => {
     // Check page overflow
     if (y > 260) {
       doc.addPage();
@@ -273,6 +274,7 @@ export const generateBillPdf = (sale: SaleDto, options: BillPdfOptions = {}): vo
  * Operates purely in-memory using an iframe, no files saved on disk.
  */
 export const printBill = (sale: SaleDto): void => {
+  const activeItems = (sale.items || []).filter(item => !item.cancelled);
   const totalDiscount = sale.discountAmount || 0;
   const grossTotal = sale.totalAmount || (sale.finalAmount + totalDiscount);
   const netAmount = sale.finalAmount ?? (grossTotal - totalDiscount);
@@ -411,7 +413,7 @@ export const printBill = (sale: SaleDto): void => {
               </tr>
             </thead>
             <tbody>
-              ${(sale.items || []).map(item => {
+              ${activeItems.map(item => {
                 const disc = item.discountAmount || 0;
                 const sub = item.subtotal ?? (item.unitPrice * item.quantity - disc);
                 return `

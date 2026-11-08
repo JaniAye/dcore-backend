@@ -144,6 +144,45 @@ class SaleServiceInvoiceMutationTest {
     }
 
     @Test
+    void cancellingAndRestoringInvoiceItemUpdatesStockAndTotals() {
+        Sale sale = saleWithSeller();
+        Product product = product(1L, "Product", "100");
+        StockBatch batch = batch(11L, product, 5, 3, "40", "100");
+        SaleItem item = SaleItem.builder()
+                .id(41L)
+                .sale(sale)
+                .product(product)
+                .batch(batch)
+                .quantity(2)
+                .unitPrice(new BigDecimal("100"))
+                .purchasePrice(new BigDecimal("40"))
+                .discountAmount(BigDecimal.ZERO)
+                .subtotal(new BigDecimal("200"))
+                .build();
+        sale.setItems(new ArrayList<>(List.of(item)));
+        sale.setTotalAmount(new BigDecimal("200"));
+        sale.setFinalAmount(new BigDecimal("200"));
+
+        when(saleRepository.findById(7L)).thenReturn(Optional.of(sale));
+        when(saleRepository.save(sale)).thenReturn(sale);
+        when(paymentRepository.findAll()).thenReturn(List.of());
+
+        var cancelled = saleService.setSaleItemCancelled(7L, 41L, true);
+
+        assertTrue(cancelled.getItems().get(0).getCancelled());
+        assertEquals(5, batch.getQuantityRemaining());
+        assertEquals(BigDecimal.ZERO, cancelled.getTotalAmount());
+        assertEquals(BigDecimal.ZERO, cancelled.getFinalAmount());
+
+        var restored = saleService.setSaleItemCancelled(7L, 41L, false);
+
+        assertFalse(restored.getItems().get(0).getCancelled());
+        assertEquals(3, batch.getQuantityRemaining());
+        assertEquals(new BigDecimal("200"), restored.getTotalAmount());
+        assertEquals(new BigDecimal("200"), restored.getFinalAmount());
+    }
+
+    @Test
     void removingAnItemFromPaidInvoiceRecordsRefundAdjustmentAndUpdatesNetPaid() {
         Sale sale = saleWithSeller();
         Product product = product(1L, "Product", "100");

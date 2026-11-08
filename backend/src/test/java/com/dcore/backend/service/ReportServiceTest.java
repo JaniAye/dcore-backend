@@ -3,6 +3,7 @@ package com.dcore.backend.service;
 import com.dcore.backend.dto.DeliveryOrderDto;
 import com.dcore.backend.dto.MiscExpenseDto;
 import com.dcore.backend.dto.SaleDto;
+import com.dcore.backend.dto.SaleItemDto;
 import com.dcore.backend.entity.DeliveryOrder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -97,6 +98,37 @@ class ReportServiceTest {
                 assertEquals(BigDecimal.ZERO, report.getTotalCostOfSales());
                 assertEquals(BigDecimal.ZERO, report.getNetProfit());
         }
+
+    @Test
+    void cancelledInvoiceItemsDoNotCountTowardPosRevenueOrCostOfSales() {
+        SaleDto sale = SaleDto.builder()
+                .createdAt(LocalDateTime.of(2026, 10, 2, 12, 0))
+                .finalAmount(new BigDecimal("100"))
+                .isInternal(false)
+                .cancelled(false)
+                .items(List.of(
+                        SaleItemDto.builder()
+                                .quantity(1)
+                                .subtotal(new BigDecimal("200"))
+                                .purchasePrice(new BigDecimal("40"))
+                                .cancelled(true)
+                                .build(),
+                        SaleItemDto.builder()
+                                .quantity(1)
+                                .subtotal(new BigDecimal("100"))
+                                .purchasePrice(new BigDecimal("60"))
+                                .build()))
+                .build();
+        when(saleService.getAllSales()).thenReturn(List.of(sale));
+        when(deliveryOrderService.getAllOrders()).thenReturn(List.of());
+        when(miscExpenseService.getAllExpenses()).thenReturn(List.of());
+
+        var report = reportService.getMonthlyProfit(2026, 10);
+
+        assertEquals(new BigDecimal("100"), report.getTotalSales());
+        assertEquals(new BigDecimal("60"), report.getTotalCostOfSales());
+        assertEquals(new BigDecimal("40"), report.getNetProfit());
+    }
 
     private DeliveryOrderDto deliveryOrder(DeliveryOrder.OrderStatus status, String cod,
             String fee, String purchasePrice, int quantity) {
