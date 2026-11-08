@@ -7,7 +7,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface StockBatchRepository extends JpaRepository<StockBatch, Long> {
-    @Query("SELECT sb FROM StockBatch sb WHERE sb.product.id = :productId AND sb.quantityRemaining > 0 ORDER BY sb.createdAt ASC")
+    @Query("SELECT sb FROM StockBatch sb WHERE sb.product.id = :productId AND sb.quantityRemaining > 0 ORDER BY sb.createdAt ASC, sb.id ASC")
     List<StockBatch> findAvailableBatchesForProduct(@Param("productId") Long productId);
 
     java.util.Optional<StockBatch> findFirstByProductIdOrderByCreatedAtDesc(Long productId);

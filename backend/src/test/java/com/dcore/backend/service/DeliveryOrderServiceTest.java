@@ -46,6 +46,37 @@ class DeliveryOrderServiceTest {
     @InjectMocks private DeliveryOrderService deliveryOrderService;
 
     @Test
+    void creatingOrderAcrossBatchesPreservesEachBatchCostForProfit() {
+        Product product = Product.builder()
+            .id(7L)
+            .name("Test product")
+            .standardPrice(new BigDecimal("200"))
+            .build();
+        StockBatch firstBatch = stockBatch(11L, product, 10, "100");
+        StockBatch secondBatch = stockBatch(12L, product, 10, "120");
+        DeliveryOrderRequest.DeliveryOrderItemRequest itemRequest = new DeliveryOrderRequest.DeliveryOrderItemRequest();
+        itemRequest.setProductId(7L);
+        itemRequest.setQuantity(20);
+        when(deliveryOrderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryOrderItemRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(productRepository.findById(7L)).thenReturn(Optional.of(product));
+        when(stockBatchRepository.findAvailableBatchesForProduct(7L)).thenReturn(List.of(firstBatch, secondBatch));
+        when(batchExpenseRepository.findByBatchId(11L)).thenReturn(List.of());
+        when(batchExpenseRepository.findByBatchId(12L)).thenReturn(List.of());
+
+        DeliveryOrderDto result = deliveryOrderService.createOrder(DeliveryOrderRequest.builder()
+            .paymentMethod(DeliveryOrder.PaymentMethod.COD)
+            .items(List.of(itemRequest))
+            .build());
+
+        assertEquals(2, result.getItems().size());
+        assertEquals(10, result.getItems().get(0).getQuantity());
+        assertEquals(new BigDecimal("100.00"), result.getItems().get(0).getPurchasePrice());
+        assertEquals(10, result.getItems().get(1).getQuantity());
+        assertEquals(new BigDecimal("120.00"), result.getItems().get(1).getPurchasePrice());
+    }
+
+    @Test
     void changingAwayFromReturnedDeductsPreviouslyRestockedItems() {
         StockBatch batch = StockBatch.builder().id(5L).quantityRemaining(0).build();
         DeliveryOrder order = order(DeliveryOrder.OrderStatus.DELIVERED, batch, 3);
@@ -118,6 +149,16 @@ class DeliveryOrderServiceTest {
                 .codAmount(BigDecimal.ZERO)
                 .deliveryFee(BigDecimal.ZERO)
                 .items(new ArrayList<>(List.of(item)))
+                .build();
+    }
+
+    private StockBatch stockBatch(Long id, Product product, int quantity, String baseCost) {
+        return StockBatch.builder()
+                .id(id)
+                .product(product)
+                .quantityInitial(quantity)
+                .quantityRemaining(quantity)
+                .baseCost(new BigDecimal(baseCost))
                 .build();
     }
 }

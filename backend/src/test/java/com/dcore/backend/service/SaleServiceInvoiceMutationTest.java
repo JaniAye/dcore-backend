@@ -37,6 +37,35 @@ class SaleServiceInvoiceMutationTest {
     @InjectMocks private SaleService saleService;
 
     @Test
+    void sellingAcrossBatchesPreservesEachBatchCostForPosProfit() {
+        Sale sale = saleWithSeller();
+        Product product = product(1L, "Product", "200");
+        StockBatch firstBatch = batch(11L, product, 10, 10, "100", "200");
+        StockBatch secondBatch = batch(12L, product, 10, 10, "120", "200");
+        SaleRequest request = new SaleRequest();
+        request.setItems(List.of(item(1L, 20, "200", "200")));
+
+        when(saleRepository.findById(7L)).thenReturn(Optional.of(sale));
+        when(saleRepository.save(sale)).thenReturn(sale);
+        when(paymentRepository.findAll()).thenReturn(List.of());
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(stockBatchRepository.findAvailableBatchesForProduct(1L)).thenReturn(List.of(firstBatch, secondBatch));
+        when(batchExpenseRepository.findByBatchId(11L)).thenReturn(List.of());
+        when(batchExpenseRepository.findByBatchId(12L)).thenReturn(List.of());
+
+        var updated = saleService.updateSale(7L, request);
+
+        assertEquals(2, updated.getItems().size());
+        assertEquals(10, updated.getItems().get(0).getQuantity());
+        assertEquals(new BigDecimal("100.00"), updated.getItems().get(0).getPurchasePrice());
+        assertEquals(10, updated.getItems().get(1).getQuantity());
+        assertEquals(new BigDecimal("120.00"), updated.getItems().get(1).getPurchasePrice());
+        assertEquals(new BigDecimal("2200.00"), updated.getItems().stream()
+                .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+    }
+
+    @Test
     void editingInvoiceRestoresOldStockThenAppliesRevisedLinesAndTotals() {
         Sale sale = saleWithSeller();
         Product oldProduct = product(1L, "Old product", "100");

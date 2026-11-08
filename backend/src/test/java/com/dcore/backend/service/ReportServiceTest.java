@@ -26,6 +26,37 @@ class ReportServiceTest {
     @InjectMocks private ReportService reportService;
 
     @Test
+    void monthlyProfitUsesEachBatchCostForPosAndDeliveredOrders() {
+        SaleDto posSale = SaleDto.builder()
+                .createdAt(LocalDateTime.of(2026, 10, 2, 12, 0))
+                .finalAmount(new BigDecimal("4000"))
+                .isInternal(false)
+                .cancelled(false)
+                .items(List.of(
+                        saleItem("100", 10),
+                        saleItem("120", 10)))
+                .build();
+        DeliveryOrderDto deliveredOrder = DeliveryOrderDto.builder()
+                .status(DeliveryOrder.OrderStatus.DELIVERED)
+                .orderDate(LocalDateTime.of(2026, 10, 2, 12, 0))
+                .codAmount(new BigDecimal("4000"))
+                .deliveryFee(BigDecimal.ZERO)
+                .items(List.of(
+                        deliveryItem("100", 10),
+                        deliveryItem("120", 10)))
+                .build();
+        when(saleService.getAllSales()).thenReturn(List.of(posSale));
+        when(deliveryOrderService.getAllOrders()).thenReturn(List.of(deliveredOrder));
+        when(miscExpenseService.getAllExpenses()).thenReturn(List.of());
+
+        var report = reportService.getMonthlyProfit(2026, 10);
+
+        assertEquals(new BigDecimal("8000"), report.getTotalSales());
+        assertEquals(new BigDecimal("4400"), report.getTotalCostOfSales());
+        assertEquals(new BigDecimal("3600"), report.getNetProfit());
+    }
+
+    @Test
     void returnedOrdersDeductShippingFeesButDoNotCountAsSalesOrCogs() {
         DeliveryOrderDto deliveredOrder = deliveryOrder(
                 DeliveryOrder.OrderStatus.DELIVERED, "130", "10", "40", 2);
@@ -80,4 +111,19 @@ class ReportServiceTest {
                         .build()))
                 .build();
     }
+
+        private com.dcore.backend.dto.SaleItemDto saleItem(String purchasePrice, int quantity) {
+                return com.dcore.backend.dto.SaleItemDto.builder()
+                                .purchasePrice(new BigDecimal(purchasePrice))
+                                .quantity(quantity)
+                                .subtotal(new BigDecimal("200").multiply(BigDecimal.valueOf(quantity)))
+                                .build();
+        }
+
+        private DeliveryOrderDto.DeliveryOrderItemDto deliveryItem(String purchasePrice, int quantity) {
+                return DeliveryOrderDto.DeliveryOrderItemDto.builder()
+                                .purchasePrice(new BigDecimal(purchasePrice))
+                                .quantity(quantity)
+                                .build();
+        }
 }
