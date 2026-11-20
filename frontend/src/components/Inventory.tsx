@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { api, getImageUrl } from '../services/api';
 import { ProductDto, Category, StockBatchDto, ExpenseItemDto } from '../types';
-import { Plus, List, Tag, Layers, FileImage, Search, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, List, Tag, Layers, FileImage, Search, Pencil, Trash2, X, Download } from 'lucide-react';
 import { TableLoader } from './TableLoader';
 import { Pagination } from './Pagination';
 import { formatCurrency } from '../utils/format';
+import { generateInventoryPdf } from '../utils/inventoryPdf';
 
 export type InventoryStockFilter = 'ALL' | 'IN_STOCK' | 'OUT_OF_STOCK' | 'ALMOST_OUT';
 
@@ -32,6 +33,9 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
   const [prodStandardPrice, setProdStandardPrice] = useState('');
   const [prodWholesalePrice, setProdWholesalePrice] = useState('');
   const [showProductForm, setShowProductForm] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportPriceType, setExportPriceType] = useState<'retail' | 'wholesale'>('retail');
+  const [exporting, setExporting] = useState(false);
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [editingProductImageUrl, setEditingProductImageUrl] = useState('');
   const [editingProductActive, setEditingProductActive] = useState(true);
@@ -441,6 +445,21 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
     }
   };
 
+  const handleExportProducts = async () => {
+    if (filteredProducts.length === 0) return;
+    setExporting(true);
+    setError('');
+    try {
+      await generateInventoryPdf(filteredProducts, exportPriceType);
+      setShowExportModal(false);
+    } catch (err) {
+      console.error('Unable to export inventory:', err);
+      setError('Unable to generate the inventory PDF. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="flex-col gap-4">
       {/* Tab Menu Header */}
@@ -622,7 +641,18 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
 
           {/* List panel */}
           <div className="glass-panel">
-            <h3 style={{ marginBottom: '1rem' }}>Product Registry</h3>
+            <div className="inventory-table-heading">
+              <h3>Product Registry</h3>
+              <button
+                type="button"
+                className="btn btn-secondary inventory-export-button"
+                onClick={() => setShowExportModal(true)}
+                disabled={dataLoading || filteredProducts.length === 0}
+                title="Export filtered products to PDF"
+              >
+                <Download size={16} /> Export PDF
+              </button>
+            </div>
             <div className="form-row" style={{ marginBottom: '1rem' }}>
               <div className="form-group" style={{ position: 'relative' }}>
                 <label className="form-label">Search by Product Name</label>
@@ -633,7 +663,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                   style={{ paddingLeft: '2.25rem' }}
                   placeholder="Search product name..."
                   value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
+                  onChange={(e) => { setProductSearch(e.target.value); setProductPage(1); }}
                 />
               </div>
               <div className="form-group">
@@ -641,7 +671,7 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                 <select
                   className="form-select"
                   value={stockFilter}
-                  onChange={(e) => setStockFilter(e.target.value as typeof stockFilter)}
+                  onChange={(e) => { setStockFilter(e.target.value as typeof stockFilter); setProductPage(1); }}
                 >
                   <option value="ALL">All products</option>
                   <option value="IN_STOCK">In stock</option>
@@ -1086,6 +1116,33 @@ export const Inventory: React.FC<InventoryProps> = ({ stockFilter: requestedStoc
                 Skip for now
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showExportModal && (
+        <div className="modal-overlay" onClick={(event) => { if (event.target === event.currentTarget && !exporting) setShowExportModal(false); }}>
+          <div className="glass-panel modal-container inventory-export-modal" role="dialog" aria-modal="true" aria-labelledby="inventory-export-title">
+            <h3 id="inventory-export-title">Export Inventory PDF</h3>
+            <p className="inventory-export-description">
+              Export all {filteredProducts.length} products matching the current search and stock filters.
+            </p>
+            <div className="export-price-options" role="radiogroup" aria-label="Price type">
+              <label className="export-price-option">
+                <input type="radio" name="inventory-export-price" value="retail" checked={exportPriceType === 'retail'} onChange={() => setExportPriceType('retail')} />
+                <span>Retail price</span>
+              </label>
+              <label className="export-price-option">
+                <input type="radio" name="inventory-export-price" value="wholesale" checked={exportPriceType === 'wholesale'} onChange={() => setExportPriceType('wholesale')} />
+                <span>Wholesale price</span>
+              </label>
+            </div>
+            <div className="inventory-export-modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowExportModal(false)} disabled={exporting}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={handleExportProducts} disabled={exporting || filteredProducts.length === 0}>
+                <Download size={16} /> {exporting ? 'Preparing PDF...' : 'Export PDF'}
+              </button>
+            </div>
           </div>
         </div>
       )}
