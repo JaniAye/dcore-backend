@@ -9,6 +9,7 @@ import { DeliveryOrders } from './components/DeliveryOrders';
 import { Expenses } from './components/Expenses';
 import { Invoices } from './components/Invoices';
 import { Customers } from './components/Customers';
+import { ProfitDetails } from './components/ProfitDetails';
 import { Role } from './types';
 
 interface UserSession {
@@ -25,6 +26,7 @@ export const App: React.FC = () => {
   const [expenseMonthFilter, setExpenseMonthFilter] = useState('');
   const [invoiceSearchFilter, setInvoiceSearchFilter] = useState('');
   const [invoicePaymentFilter, setInvoicePaymentFilter] = useState('ALL');
+  const [profitMonth, setProfitMonth] = useState('');
 
   const syncAuthState = () => {
     const t = localStorage.getItem('dcore_token');
@@ -70,7 +72,14 @@ export const App: React.FC = () => {
               setExpenseMonthFilter(month);
               setCurrentTab('expenses');
             }}
+            onOpenProfit={(month) => {
+              setProfitMonth(month);
+              setCurrentTab('profit');
+            }}
           />
+        )}
+        {currentTab === 'profit' && user.role === 'SUPER_ADMIN' && (
+          <ProfitDetails month={profitMonth} onBack={() => setCurrentTab('dashboard')} />
         )}
         {currentTab === 'pos' && <POS />}
         {currentTab === 'inventory' && <Inventory stockFilter={inventoryStockFilter} />}

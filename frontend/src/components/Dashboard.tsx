@@ -18,9 +18,10 @@ interface DashboardProps {
   onOpenDeliveryOrders: () => void;
   onOpenInventory: (filter: InventoryStockFilter) => void;
   onOpenExpenses: (month: string) => void;
+  onOpenProfit: (month: string) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOpenInventory, onOpenExpenses }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOpenInventory, onOpenExpenses, onOpenProfit }) => {
   const [dailySales, setDailySales] = useState<number>(0);
   const [monthlyReport, setMonthlyReport] = useState<ProfitBreakdownDto | null>(null);
   const [productCount, setProductCount] = useState<number>(0);
@@ -160,7 +161,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
           </div>
         </div>
 
-        <div className="glass-panel stat-card">
+        <button type="button" className="glass-panel stat-card" onClick={() => onOpenProfit(yearMonth)} style={{ textAlign: 'left', color: 'inherit', cursor: 'pointer' }}>
           <span className="stat-title">Net Profit (Monthly)</span>
           <div className={`stat-value ${monthlyReport && monthlyReport.netProfit >= 0 ? 'text-success' : 'text-danger'}`}>
             {formatCurrency(monthlyReport?.netProfit)}
@@ -172,7 +173,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenDeliveryOrders, onOp
               <span className="trend-down flex align-center gap-2"><TrendingDown size={14} /> Expenses exceed revenue</span>
             )}
           </div>
-        </div>
+        </button>
 
         <button type="button" className="glass-panel stat-card" onClick={() => onOpenInventory('IN_STOCK')} style={{ textAlign: 'left', color: 'inherit', cursor: 'pointer' }}>
           <span className="stat-title">Active Products</span>

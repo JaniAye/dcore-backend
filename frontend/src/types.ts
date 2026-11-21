@@ -208,6 +208,7 @@ export interface DeliveryOrderDto {
   remark?: string;
   address?: string;
   orderDate: string;
+  deliveredAt?: string;
   status: OrderStatus;
   paymentMethod: string;
   codAmount: number;

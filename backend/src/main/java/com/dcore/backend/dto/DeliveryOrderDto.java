@@ -17,6 +17,7 @@ public class DeliveryOrderDto {
     private String mobileNumber;
     private String remark;
     private LocalDateTime orderDate;
+    private LocalDateTime deliveredAt;
     private DeliveryOrder.OrderStatus status;
     private DeliveryOrder.PaymentMethod paymentMethod;
     private BigDecimal codAmount;

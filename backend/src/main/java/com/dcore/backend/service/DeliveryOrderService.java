@@ -176,6 +176,12 @@ public class DeliveryOrderService {
             }
         }
 
+        if (newStatus == DeliveryOrder.OrderStatus.DELIVERED
+                && order.getStatus() != DeliveryOrder.OrderStatus.DELIVERED) {
+            order.setDeliveredAt(LocalDateTime.now());
+        } else if (newStatus != DeliveryOrder.OrderStatus.DELIVERED) {
+            order.setDeliveredAt(null);
+        }
         order.setStatus(newStatus);
         return mapToDto(deliveryOrderRepository.save(order));
     }
@@ -233,6 +239,7 @@ public class DeliveryOrderService {
 
         for (DeliveryOrder order : oldPendingOrders) {
             order.setStatus(DeliveryOrder.OrderStatus.DELIVERED);
+            order.setDeliveredAt(LocalDateTime.now());
             deliveryOrderRepository.save(order);
         }
 
@@ -254,6 +261,7 @@ public class DeliveryOrderService {
                 .mobileNumber(order.getMobileNumber())
                 .remark(order.getRemark())
                 .orderDate(order.getOrderDate())
+                .deliveredAt(order.getDeliveredAt())
                 .status(order.getStatus())
                 .paymentMethod(order.getPaymentMethod())
                 .codAmount(order.getCodAmount())

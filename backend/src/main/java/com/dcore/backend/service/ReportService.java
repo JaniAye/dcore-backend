@@ -2,6 +2,7 @@ package com.dcore.backend.service;
 
 import com.dcore.backend.dto.MiscExpenseDto;
 import com.dcore.backend.dto.ProfitBreakdownDto;
+import com.dcore.backend.dto.DeliveryOrderDto;
 import com.dcore.backend.dto.SaleDto;
 import com.dcore.backend.entity.DeliveryOrder;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,7 @@ public class ReportService {
         // Include Delivery Orders (Delivered only)
         BigDecimal deliverySales = deliveryOrderService.getAllOrders().stream()
                 .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
-                .filter(o -> o.getOrderDate() != null && !o.getOrderDate().isBefore(startOfDay) && !o.getOrderDate().isAfter(endOfDay))
+                .filter(o -> deliveryAccountingDate(o) != null && !deliveryAccountingDate(o).isBefore(startOfDay) && !deliveryAccountingDate(o).isAfter(endOfDay))
                 .map(o -> o.getCodAmount().subtract(o.getDeliveryFee()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -66,13 +67,13 @@ public class ReportService {
         // 2. Delivery Revenue and COGS (Delivered only)
         BigDecimal deliveryRevenue = deliveryOrderService.getAllOrders().stream()
                 .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
-                .filter(o -> o.getOrderDate() != null && o.getOrderDate().getYear() == year && o.getOrderDate().getMonthValue() == month)
+                .filter(o -> deliveryAccountingDate(o) != null && deliveryAccountingDate(o).getYear() == year && deliveryAccountingDate(o).getMonthValue() == month)
                 .map(o -> o.getCodAmount().subtract(o.getDeliveryFee()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal deliveryCostOfSales = deliveryOrderService.getAllOrders().stream()
                 .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
-                .filter(o -> o.getOrderDate() != null && o.getOrderDate().getYear() == year && o.getOrderDate().getMonthValue() == month)
+                .filter(o -> deliveryAccountingDate(o) != null && deliveryAccountingDate(o).getYear() == year && deliveryAccountingDate(o).getMonthValue() == month)
                 .flatMap(o -> o.getItems().stream())
                 .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -101,4 +102,8 @@ public class ReportService {
                 .netProfit(netProfit)
                 .build();
     }
+
+        private LocalDateTime deliveryAccountingDate(DeliveryOrderDto order) {
+                return order.getDeliveredAt() != null ? order.getDeliveredAt() : order.getOrderDate();
+        }
 }

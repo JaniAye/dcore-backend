@@ -76,6 +76,29 @@ class ReportServiceTest {
     }
 
         @Test
+        void monthlyProfitUsesDeliveryCompletionDateWhenAvailable() {
+                DeliveryOrderDto deliveredOrder = DeliveryOrderDto.builder()
+                                .status(DeliveryOrder.OrderStatus.DELIVERED)
+                                .orderDate(LocalDateTime.of(2026, 10, 31, 12, 0))
+                                .deliveredAt(LocalDateTime.of(2026, 11, 1, 9, 0))
+                                .codAmount(new BigDecimal("130"))
+                                .deliveryFee(new BigDecimal("10"))
+                                .items(List.of(deliveryItem("40", 2)))
+                                .build();
+                when(saleService.getAllSales()).thenReturn(List.of());
+                when(deliveryOrderService.getAllOrders()).thenReturn(List.of(deliveredOrder));
+                when(miscExpenseService.getAllExpenses()).thenReturn(List.of());
+
+                var octoberReport = reportService.getMonthlyProfit(2026, 10);
+                var novemberReport = reportService.getMonthlyProfit(2026, 11);
+
+                assertEquals(BigDecimal.ZERO, octoberReport.getTotalSales());
+                assertEquals(new BigDecimal("120"), novemberReport.getTotalSales());
+                assertEquals(new BigDecimal("80"), novemberReport.getTotalCostOfSales());
+                assertEquals(new BigDecimal("40"), novemberReport.getNetProfit());
+        }
+
+        @Test
         void cancelledInvoicesDoNotCountAsSalesOrCostOfSales() {
                 SaleDto cancelledSale = SaleDto.builder()
                                 .createdAt(LocalDateTime.of(2026, 10, 2, 12, 0))

@@ -33,6 +33,8 @@ public class DeliveryOrder {
     @Column(nullable = false)
     private LocalDateTime orderDate;
 
+    private LocalDateTime deliveredAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OrderStatus status;
