@@ -26,6 +26,7 @@ services:
       - db
     volumes:
       - uploads_data:/app/uploads/
+      - ./logs:/app/logs 
 
   frontend:
     build: ./frontend

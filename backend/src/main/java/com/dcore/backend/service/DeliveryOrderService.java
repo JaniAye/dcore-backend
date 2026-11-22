@@ -16,7 +16,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import java.util.Objects;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DeliveryOrderService {
@@ -183,6 +186,10 @@ public class DeliveryOrderService {
             order.setDeliveredAt(null);
         }
         order.setStatus(newStatus);
+        if (newStatus == DeliveryOrder.OrderStatus.DELIVERED || newStatus == DeliveryOrder.OrderStatus.RETURNED) {
+            order.setStatusChangedAt(LocalDateTime.now());
+            
+        }
         return mapToDto(deliveryOrderRepository.save(order));
     }
 
@@ -252,6 +259,50 @@ public class DeliveryOrderService {
                 .collect(Collectors.toList());
     }
 
+public List<DeliveryOrderDto> getAllDeliveredOrdersWithinMonth(int year, int month) {
+
+    return deliveryOrderRepository.findAll().stream()
+            .filter(order -> order.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
+            .filter(order -> order.getStatusChangedAt() != null
+                    && order.getStatusChangedAt().getYear() == year
+                    && order.getStatusChangedAt().getMonthValue() == month)
+            .map(this::mapToDto)
+            .collect(Collectors.toList());
+
+}
+
+    public BigDecimal getTotalDeliveredOrderProfit(int year, int month) {
+
+        return deliveryOrderRepository.findAll().stream()
+                .filter(order -> order.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
+                .filter(order -> order.getStatusChangedAt() != null
+                        && order.getStatusChangedAt().getYear() == year
+                        && order.getStatusChangedAt().getMonthValue() == month)
+                .map(order -> {
+                    BigDecimal totalPurchaseCost = order.getItems().stream()
+                            .map(item -> item.getPurchasePrice()
+                                    .multiply(BigDecimal.valueOf(item.getQuantity())))
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    return order.getCodAmount()
+                            .subtract(order.getDeliveryFee())
+                            .subtract(totalPurchaseCost);
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public BigDecimal getTotalReturnedOrderDeliveryFees(int year, int month) {
+
+        return deliveryOrderRepository.findAll().stream()
+                .filter(order -> order.getStatus() == DeliveryOrder.OrderStatus.RETURNED)
+                .filter(order -> order.getStatusChangedAt() != null
+                        && order.getStatusChangedAt().getYear() == year
+                        && order.getStatusChangedAt().getMonthValue() == month)
+                .map(DeliveryOrder::getDeliveryFee)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
     private DeliveryOrderDto mapToDto(DeliveryOrder order) {
         return DeliveryOrderDto.builder()
                 .id(order.getId())
@@ -263,6 +314,7 @@ public class DeliveryOrderService {
                 .orderDate(order.getOrderDate())
                 .deliveredAt(order.getDeliveredAt())
                 .status(order.getStatus())
+                .statusChangedAt(order.getStatusChangedAt())
                 .paymentMethod(order.getPaymentMethod())
                 .codAmount(order.getCodAmount())
                 .deliveryFee(order.getDeliveryFee())

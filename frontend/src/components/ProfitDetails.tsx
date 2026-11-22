@@ -68,7 +68,7 @@ export const ProfitDetails: React.FC<{ month: string; onBack: () => void }> = ({
     const [yearText, monthText] = month.split('-');
     Promise.all([
       api.sales.getAll(),
-      api.deliveryOrders.getAll(),
+      api.deliveryOrders.getAllDelivered(),
       api.reports.getMonthlyProfit(Number(yearText), Number(monthText))
     ])
       .then(([sales, orders, report]) => {

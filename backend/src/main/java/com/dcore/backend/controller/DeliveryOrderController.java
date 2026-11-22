@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -26,6 +27,16 @@ public class DeliveryOrderController {
     public ResponseEntity<List<DeliveryOrderDto>> getAllOrders() {
         return ResponseEntity.ok(deliveryOrderService.getAllOrders());
     }
+
+    @GetMapping("/delivered")
+    public ResponseEntity<List<DeliveryOrderDto>> getAllDeliveredOrders() {
+        LocalDate today = LocalDate.now();
+
+        int year = today.getYear();
+        int month = today.getMonthValue();
+        return ResponseEntity.ok(deliveryOrderService.getAllDeliveredOrdersWithinMonth(year, month));
+    }
+
 
     @PutMapping("/{id}")
     public ResponseEntity<DeliveryOrderDto> updateOrder(

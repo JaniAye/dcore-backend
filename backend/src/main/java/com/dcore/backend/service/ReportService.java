@@ -7,6 +7,8 @@ import com.dcore.backend.dto.SaleDto;
 import com.dcore.backend.entity.DeliveryOrder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
+
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReportService {
 
     private final SaleService saleService;
@@ -65,24 +68,20 @@ public class ReportService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         // 2. Delivery Revenue and COGS (Delivered only)
-        BigDecimal deliveryRevenue = deliveryOrderService.getAllOrders().stream()
-                .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
-                .filter(o -> deliveryAccountingDate(o) != null && deliveryAccountingDate(o).getYear() == year && deliveryAccountingDate(o).getMonthValue() == month)
+        BigDecimal deliveryRevenue = deliveryOrderService.getAllDeliveredOrdersWithinMonth(year, month).stream()
                 .map(o -> o.getCodAmount().subtract(o.getDeliveryFee()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal deliveryCostOfSales = deliveryOrderService.getAllOrders().stream()
-                .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
-                .filter(o -> deliveryAccountingDate(o) != null && deliveryAccountingDate(o).getYear() == year && deliveryAccountingDate(o).getMonthValue() == month)
+       BigDecimal deliveryCostOfSales = deliveryOrderService.getAllDeliveredOrdersWithinMonth(year, month).stream()
                 .flatMap(o -> o.getItems().stream())
                 .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal returnedDeliveryFees = deliveryOrderService.getAllOrders().stream()
-                .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.RETURNED)
-                .filter(o -> o.getOrderDate() != null && o.getOrderDate().getYear() == year && o.getOrderDate().getMonthValue() == month)
-                .map(o -> o.getDeliveryFee() != null ? o.getDeliveryFee() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal deliveryOrderProfit =
+        deliveryOrderService.getTotalDeliveredOrderProfit(year, month);
+
+        BigDecimal returnedDeliveryFees =
+        deliveryOrderService.getTotalReturnedOrderDeliveryFees(year, month);
 
         // 3. Miscellaneous Expenses
         BigDecimal totalMiscExpenses = miscExpenseService.getAllExpenses().stream()
@@ -92,7 +91,11 @@ public class ReportService {
 
         BigDecimal totalSales = posRevenue.add(deliveryRevenue);
         BigDecimal totalCostOfSales = posCostOfSales.add(deliveryCostOfSales);
-        BigDecimal netProfit = totalSales.subtract(totalCostOfSales).subtract(totalMiscExpenses).subtract(returnedDeliveryFees);
+        BigDecimal posProfit = posRevenue.subtract(posCostOfSales);
+        BigDecimal deliveryProfit = deliveryOrderProfit.subtract(returnedDeliveryFees);
+        // BigDecimal deliveryProfit = deliveryRevenue.subtract(deliveryCostOfSales).subtract(returnedDeliveryFees);
+        BigDecimal totalProfit = posProfit.add(deliveryProfit);
+        BigDecimal netProfit = totalProfit.subtract(totalMiscExpenses);
 
         return ProfitBreakdownDto.builder()
                 .totalSales(totalSales)
@@ -104,6 +107,6 @@ public class ReportService {
     }
 
         private LocalDateTime deliveryAccountingDate(DeliveryOrderDto order) {
-                return order.getDeliveredAt() != null ? order.getDeliveredAt() : order.getOrderDate();
+                return order.getStatusChangedAt() != null ? order.getStatusChangedAt() :  null;
         }
 }

@@ -39,6 +39,8 @@ public class DeliveryOrder {
     @Column(nullable = false)
     private OrderStatus status;
 
+    private LocalDateTime statusChangedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentMethod paymentMethod;

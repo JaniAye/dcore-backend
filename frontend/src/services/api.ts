@@ -276,6 +276,10 @@ export const api = {
       const res = await client.get('/delivery-orders');
       return res.data;
     },
+    getAllDelivered: async (): Promise<DeliveryOrderDto[]> => {
+      const res = await client.get('/delivery-orders/delivered');
+      return res.data;
+    },
     create: async (data: DeliveryOrderRequest): Promise<DeliveryOrderDto> => {
       const res = await client.post('/delivery-orders', data);
       return res.data;
