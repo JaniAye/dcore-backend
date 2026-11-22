@@ -177,6 +177,7 @@ public class DeliveryOrderService {
         }
 
         order.setStatus(newStatus);
+        order.setStatusChangedAt(LocalDateTime.now());
         return mapToDto(deliveryOrderRepository.save(order));
     }
 

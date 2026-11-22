@@ -18,6 +18,7 @@ public class DeliveryOrderDto {
     private String remark;
     private LocalDateTime orderDate;
     private DeliveryOrder.OrderStatus status;
+    private LocalDateTime statusChangedAt;
     private DeliveryOrder.PaymentMethod paymentMethod;
     private BigDecimal codAmount;
     private BigDecimal deliveryFee;

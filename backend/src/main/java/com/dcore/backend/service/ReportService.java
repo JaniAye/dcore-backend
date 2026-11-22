@@ -66,20 +66,20 @@ public class ReportService {
         // 2. Delivery Revenue and COGS (Delivered only)
         BigDecimal deliveryRevenue = deliveryOrderService.getAllOrders().stream()
                 .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
-                .filter(o -> o.getOrderDate() != null && o.getOrderDate().getYear() == year && o.getOrderDate().getMonthValue() == month)
+                .filter(o -> o.getStatusChangedAt() != null && o.getStatusChangedAt().getYear() == year && o.getStatusChangedAt().getMonthValue() == month)
                 .map(o -> o.getCodAmount().subtract(o.getDeliveryFee()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal deliveryCostOfSales = deliveryOrderService.getAllOrders().stream()
                 .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.DELIVERED)
-                .filter(o -> o.getOrderDate() != null && o.getOrderDate().getYear() == year && o.getOrderDate().getMonthValue() == month)
+                .filter(o -> o.getStatusChangedAt() != null && o.getStatusChangedAt().getYear() == year && o.getStatusChangedAt().getMonthValue() == month)
                 .flatMap(o -> o.getItems().stream())
                 .map(item -> item.getPurchasePrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal returnedDeliveryFees = deliveryOrderService.getAllOrders().stream()
                 .filter(o -> o.getStatus() == DeliveryOrder.OrderStatus.RETURNED)
-                .filter(o -> o.getOrderDate() != null && o.getOrderDate().getYear() == year && o.getOrderDate().getMonthValue() == month)
+                .filter(o -> o.getStatusChangedAt() != null && o.getStatusChangedAt().getYear() == year && o.getStatusChangedAt().getMonthValue() == month)
                 .map(o -> o.getDeliveryFee() != null ? o.getDeliveryFee() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -88,6 +88,14 @@ public class ReportService {
                 .filter(e -> e.getExpenseDate().getYear() == year && e.getExpenseDate().getMonthValue() == month)
                 .map(MiscExpenseDto::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        System.out.println("POS Revenue: " + posRevenue);
+        System.out.println("POS Cost: " + posCostOfSales);
+        System.out.println("Delivery Revenue: " + deliveryRevenue);
+        System.out.println("Delivery Cost: " + deliveryCostOfSales);
+        System.out.println("Returned Delivery Fees: " + returnedDeliveryFees);
+        System.out.println("Total Miscellaneous Expenses: " + totalMiscExpenses);
+        
 
         BigDecimal totalSales = posRevenue.add(deliveryRevenue);
         BigDecimal totalCostOfSales = posCostOfSales.add(deliveryCostOfSales);
